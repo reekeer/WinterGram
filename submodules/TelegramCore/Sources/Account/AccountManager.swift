@@ -279,8 +279,10 @@ public func performAppGroupUpgrades(appGroupPath: String, rootPath: String) {
     }
     
     do {
+        // WinterGram: include account data in the device's iCloud/iTunes backup so accounts
+        // survive a restore. Tradeoff: session auth keys are then part of the iCloud backup.
         var resourceValues = URLResourceValues()
-        resourceValues.isExcludedFromBackup = true
+        resourceValues.isExcludedFromBackup = false
         var mutableUrl = URL(fileURLWithPath: rootPath)
         try mutableUrl.setResourceValues(resourceValues)
     } catch let e {

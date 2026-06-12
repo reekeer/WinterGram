@@ -56,6 +56,17 @@ private let handleVoipNotifications = false
 
 private var testIsLaunched = false
 
+func normalizeWinterGramUrlScheme(_ url: URL) -> URL {
+    guard let scheme = url.scheme, scheme.lowercased() == "wnt" else {
+        return url
+    }
+    guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+        return url
+    }
+    components.scheme = "tg"
+    return components.url ?? url
+}
+
 private func isKeyboardWindow(window: NSObject) -> Bool {
     let typeName = NSStringFromClass(type(of: window))
     if #available(iOS 9.0, *) {
@@ -248,7 +259,8 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private let openNotificationSettingsWhenReadyDisposable = MetaDisposable()
     private let openChatWhenReadyDisposable = MetaDisposable()
     private let openUrlWhenReadyDisposable = MetaDisposable()
-    
+    private let winterGramSettingsDisposable = MetaDisposable()
+
     private let badgeDisposable = MetaDisposable()
     private let quickActionsDisposable = MetaDisposable()
     
@@ -1191,6 +1203,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             })
             let sharedApplicationContext = SharedApplicationContext(sharedContext: sharedContext, notificationManager: notificationManager, wakeupManager: wakeupManager)
             sharedApplicationContext.sharedContext.mediaManager.overlayMediaManager.attachOverlayMediaController(sharedApplicationContext.overlayMediaController)
+            self.winterGramSettingsDisposable.set(observeWinterGramSettings(accountManager: accountManager))
             
             return accountManager.transaction { transaction -> (SharedApplicationContext, LoggingSettings) in
                 return (sharedApplicationContext, transaction.getSharedData(SharedDataKeys.loggingSettings)?.get(LoggingSettings.self) ?? LoggingSettings.defaultSettings)
@@ -1513,10 +1526,10 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         })
         
         if let url = launchOptions?[.url] {
-            if let url = url as? URL, url.scheme == "tg" || url.scheme == buildConfig.appSpecificUrlScheme {
-                self.openUrlWhenReady(url: url, external: true)
-            } else if let urlString = url as? String, urlString.lowercased().hasPrefix("tg:") || urlString.lowercased().hasPrefix("\(buildConfig.appSpecificUrlScheme):"), let url = URL(string: urlString) {
-                self.openUrlWhenReady(url: url, external: true)
+            if let url = url as? URL, url.scheme == "tg" || url.scheme == "wnt" || url.scheme == buildConfig.appSpecificUrlScheme {
+                self.openUrlWhenReady(url: normalizeWinterGramUrlScheme(url), external: true)
+            } else if let urlString = url as? String, urlString.lowercased().hasPrefix("tg:") || urlString.lowercased().hasPrefix("wnt:") || urlString.lowercased().hasPrefix("\(buildConfig.appSpecificUrlScheme):"), let url = URL(string: urlString) {
+                self.openUrlWhenReady(url: normalizeWinterGramUrlScheme(url), external: true)
             }
         }
         
@@ -2500,6 +2513,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     }
     
     private func openUrl(url: URL) {
+        let url = normalizeWinterGramUrlScheme(url)
         let _ = (self.sharedContextPromise.get()
         |> take(1)
         |> mapToSignal { sharedApplicationContext -> Signal<(SharedAccountContextImpl, AuthorizedApplicationContext?, UnauthorizedApplicationContext?), NoError> in

@@ -14,6 +14,7 @@ import TelegramStringFormatting
 import PeerNameColorItem
 
 enum SettingsSection: Int, CaseIterable {
+    case winterGram
     case edit
     case phone
     case accounts
@@ -36,7 +37,11 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     for section in SettingsSection.allCases {
         items[section] = []
     }
-    
+
+    items[.winterGram]!.append(PeerInfoScreenDisclosureItem(id: 0, text: "WinterGram", icon: PresentationResourcesSettings.winterGram, action: {
+        interaction.openSettings(.winterGram)
+    }))
+
     let setPhotoTitle: String
     if let peer = data.peer, !peer.profileImageRepresentations.isEmpty {
         setPhotoTitle = presentationData.strings.Settings_ChangeProfilePhoto
@@ -239,7 +244,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 3, text: presentationData.strings.Settings_Appearance, icon: PresentationResourcesSettings.appearance, action: {
         interaction.openSettings(.appearance)
     }))
-    
+
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 6, label: .text(data.isPowerSavingEnabled == true ? presentationData.strings.Settings_PowerSavingOn : presentationData.strings.Settings_PowerSavingOff), text: presentationData.strings.Settings_PowerSaving, icon: PresentationResourcesSettings.powerSaving, action: {
         interaction.openSettings(.powerSaving)
     }))

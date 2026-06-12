@@ -18,6 +18,7 @@ swift_library(
         "//submodules/OverlayStatusController",
         "//submodules/UrlWhitelist",
         "//submodules/TelegramPresentationData",
+        "//submodules/TelegramUIPreferences",
         "//submodules/TelegramUI/Components/AlertComponent",
         "//submodules/TelegramUI/Components/AlertComponent/AlertCheckComponent",
         "//submodules/TelegramUI/Components/AlertComponent/AlertWebpagePreviewComponent",

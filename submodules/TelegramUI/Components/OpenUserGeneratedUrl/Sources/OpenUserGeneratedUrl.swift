@@ -8,6 +8,7 @@ import AccountContext
 import OverlayStatusController
 import UrlWhitelist
 import TelegramPresentationData
+import TelegramUIPreferences
 import AlertComponent
 import AlertCheckComponent
 import AlertWebpagePreviewComponent
@@ -111,7 +112,7 @@ public func openUserGeneratedUrl(
         }
     }
 
-    if concealed && !skipConcealedAlert {
+    if concealed && !skipConcealedAlert && !currentWinterGramSettings.disableOpenLinkWarning {
         var rawDisplayUrl: String = parsedString
         let maxLength = 180
         if rawDisplayUrl.count > maxLength {

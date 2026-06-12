@@ -6,6 +6,7 @@ import TemporaryCachedPeerDataManager
 import Emoji
 import AccountContext
 import TelegramPresentationData
+import TelegramUIPreferences
 import ChatHistoryEntry
 import ChatMessageItemCommon
 import TextFormat
@@ -687,7 +688,7 @@ func chatHistoryEntriesForView(
         }
 
         if view.laterId == nil && !view.isLoading {
-            if !entries.isEmpty, case let .MessageEntry(lastMessage, _, _, _, _, _) = entries[entries.count - 1], let message = adMessage {
+            if !entries.isEmpty, !currentWinterGramSettings.disableAds, case let .MessageEntry(lastMessage, _, _, _, _, _) = entries[entries.count - 1], let message = adMessage {
                 var nextAdMessageId: Int32 = 10000
                 let updatedMessage = Message(
                     stableId: ChatHistoryListNodeImpl.fixedAdMessageStableId,

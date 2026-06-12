@@ -1,116 +1,122 @@
-# Telegram iOS Source Code Compilation Guide
+<h1 align="center">WinterGram</h1>
 
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
+<h4 align="center">WinterGram (Wnt) is a feature-rich, privacy-focused Telegram client for iPhone — a native iOS port of the AyuGram experience, built on top of Telegram-iOS.</h4>
 
-# Creating your Telegram Application
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv2-green?style=for-the-badge&logo=gnu&logoColor=FFFFFF" alt="License"></a>
+  <img src="https://img.shields.io/badge/Platform-iOS%2015%2B-black?style=for-the-badge&logo=apple&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/badge/Language-Swift-orange?style=for-the-badge&logo=swift&logoColor=white" alt="Swift">
+  <img src="https://img.shields.io/badge/Build-Bazel-43A047?style=for-the-badge&logo=bazel&logoColor=white" alt="Bazel">
+  <img src="https://img.shields.io/github/stars/reekeer/WinterGram?style=for-the-badge&logo=github&logoColor=white" alt="Stars">
+  <img src="https://img.shields.io/github/last-commit/reekeer/WinterGram?style=for-the-badge&logo=github&logoColor=white" alt="Last Commit">
+</p>
 
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
+---
 
-# Quick Compilation Guide
+**WinterGram** brings the most-loved AyuGram features to iOS with a clean, Material-inspired interface, a configurable **Liquid Glass** appearance, and a single dedicated settings tab where everything lives. It speaks both the standard `tg://` deep links and its own `wnt://` scheme.
 
-## Get the Code
+---
 
-```
-git clone --recursive -j8 https://github.com/TelegramMessenger/Telegram-iOS.git
-```
+## ✨ Features
 
-## Setup Xcode
+### 👻 Privacy & Ghost Mode
+- **Ghost Mode**: don't send read receipts, typing/upload status, or online presence — toggle it all at once.
+- **Send without sound**: never / only in Ghost Mode / always.
+- **Story ghost**: view stories without marking them seen, with an optional confirmation prompt.
+- **Mark read after action**, **go offline after going online**, and per-toggle locks.
 
-Install Xcode (directly from https://developer.apple.com/download/applications or using the App Store).
+### 🗂 History & Recovery
+- **Save deleted messages**: keep messages locally even after the other side deletes them.
+- **Edit history**: store every revision of a message and browse it.
+- **Semi-transparent deleted markers** and a customizable deleted / edited mark.
 
-## Adjust Configuration
+### 🧊 Hidden Archive ("AАrchive")
+- Stash chats into a **separate, settings-only archive** — no notifications, no badge.
+- Optional **auto-mark-read** for everything sent to the stash.
 
-1. Generate a random identifier:
-```
-openssl rand -hex 8
-```
-2. Create a new Xcode project. Use `Telegram` as the Product Name. Use `org.{identifier from step 1}` as the Organization Identifier.
-3. Open `Keychain Access` and navigate to `Certificates`. Locate `Apple Development: your@email.address (XXXXXXXXXX)` and double tap the certificate. Under `Details`, locate `Organizational Unit`. This is the Team ID.
-4. Edit `build-system/template_minimal_development_configuration.json`. Use data from the previous steps.
+### 🛡️ Anti-Features
+- **Disable ads** (sponsored messages).
+- **Local Telegram Premium** — unlock Premium-gated UI locally.
+- **Shadow ban** — silently hide a user's messages from your view.
+- **Hide / disable stories**, **hide Premium statuses**, **disable open-link warning**.
 
-## Generate an Xcode project
+### 💬 Chat Conveniences
+- **Sticker / GIF / voice send confirmations**.
+- **Message seconds** in timestamps and **peer ID** display (Telegram or Bot API form).
+- **Message translation** with a selectable provider (Telegram / Google / Yandex / system).
+- **WebView platform spoofing** (auto / iOS / Android / macOS / desktop) and taller WebViews.
 
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=build-system/template_minimal_development_configuration.json \
-    --xcodeManagedCodesigning
-```
+### 🎨 Appearance & Customization
+- **Liquid Glass** — frosted, translucent surfaces across the chat list, navigation, and tab bar, with **on/off toggle**, adjustable **transparency**, **blur radius**, **tint**, and per-surface application.
+- **Material Design** switches and controls.
+- **Avatar corner radius** (round → squircle → square) and **message bubble radius**, with optional single-corner mode.
+- **Custom fonts** (UI + monospace).
+- **App icons**, including the bundled WinterGram dark icon, plus **AyuGram / exteraGram icon-pack compatibility**.
+- **Custom emoji** support, with an option to show only your added emoji & stickers.
 
-# Advanced Compilation Guide
+---
 
-## Xcode
+## 🔗 Deep Links
 
-1. Copy and edit `build-system/appstore-configuration.json`.
-2. Copy `build-system/fake-codesigning`. Create and download provisioning profiles, using the `profiles` folder as a reference for the entitlements.
-3. Generate an Xcode project:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=configuration_from_step_1.json \
-    --codesigningInformationPath=directory_from_step_2
-```
-
-## IPA
-
-1. Repeat the steps from the previous section. Use distribution provisioning profiles.
-2. Run:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    build \
-    --configurationPath=...see previous section... \
-    --codesigningInformationPath=...see previous section... \
-    --buildNumber=100001 \
-    --configuration=release_arm64
-```
-
-# FAQ
-
-## Xcode is stuck at "build-request.json not updated yet"
-
-Occasionally, you might observe the following message in your build log:
-```
-"/Users/xxx/Library/Developer/Xcode/DerivedData/Telegram-xxx/Build/Intermediates.noindex/XCBuildData/xxx.xcbuilddata/build-request.json" not updated yet, waiting...
-```
-
-Should this occur, simply cancel the ongoing build and initiate a new one.
-
-## Telegram_xcodeproj: no such package 
-
-Following a system restart, the auto-generated Xcode project might encounter a build failure accompanied by this error:
-```
-ERROR: Skipping '@rules_xcodeproj_generated//generator/Telegram/Telegram_xcodeproj:Telegram_xcodeproj': no such package '@rules_xcodeproj_generated//generator/Telegram/Telegram_xcodeproj': BUILD file not found in directory 'generator/Telegram/Telegram_xcodeproj' of external repository @rules_xcodeproj_generated. Add a BUILD file to a directory to mark it as a package.
-```
-
-If you encounter this issue, re-run the project generation steps in the README.
-
-
-# Tips
-
-## Codesigning is not required for simulator-only builds
-
-Add `--disableProvisioningProfiles`:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=path-to-configuration.json \
-    --codesigningInformationPath=path-to-provisioning-data \
-    --disableProvisioningProfiles
-```
-
-## Versions
-
-Each release is built using a specific Xcode version (see `versions.json`). The helper script checks the versions of the installed software and reports an error if they don't match the ones specified in `versions.json`. It is possible to bypass these checks:
+WinterGram registers and resolves two URL schemes — anything that works with `tg://` works with `wnt://`:
 
 ```
-python3 build-system/Make/Make.py --overrideXcodeVersion build ... # Don't check the version of Xcode
+tg://resolve?domain=durov
+wnt://resolve?domain=durov
 ```
+
+`wnt://` links are normalized to the standard resolver at the entry point, so they route through exactly the same handling as native Telegram links.
+
+---
+
+## 🚀 Build
+
+WinterGram builds with the standard Telegram-iOS toolchain (Bazel via the `Make.py` wrapper) on **macOS with Xcode**.
+
+```sh
+python3 build-system/Make/Make.py --overrideXcodeVersion \
+  --cacheDir ~/telegram-bazel-cache \
+  build \
+  --configurationPath build-system/appstore-configuration.json \
+  --gitCodesigningRepository <your-codesigning-repo> \
+  --gitCodesigningType development --gitCodesigningUseCurrent \
+  --buildNumber=1 --configuration=debug_sim_arm64
+```
+
+See [`docs/wintergram-features.md`](docs/wintergram-features.md) for the feature → implementation map and the project's architecture notes.
+
+---
+
+## ⚙️ Configuration
+
+All WinterGram options live in a single settings store (`WinterGramSettings`), persisted with the app's shared-data system and exposed through reactive signals. There is one dedicated **WinterGram** tab in Settings — no scattered toggles.
+
+---
+
+## 🗂 Structure
+
+```
+WinterGram/
+├── Telegram/                ← App entry points and extensions
+├── submodules/              ← Feature libraries (Swift / Obj-C)
+│   └── TelegramUIPreferences/
+│       └── Sources/WinterGramSettings.swift   ← all WinterGram options
+├── branding/                ← WinterGram icons and brand assets
+├── docs/                    ← Architecture and feature documentation
+├── build-system/            ← Bazel build wrapper (Make.py)
+└── README.md
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome. WinterGram is maintained by [**IMDelewer**](https://github.com/IMDelewer) and [**salenyo**](https://github.com/salenyo) under the [reekeer](https://github.com/reekeer) organization. See [`MAINTAINERS.md`](MAINTAINERS.md).
+
+---
+
+<p align="center">
+  Built on Telegram-iOS · inspired by AyuGram
+</p>
+
+<p align="center"><sub><a href="LICENSE">GPLv2</a> © reekeer</sub></p>
