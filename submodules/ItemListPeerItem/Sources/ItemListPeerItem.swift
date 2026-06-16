@@ -25,70 +25,70 @@ private final class ShimmerEffectNode: ASDisplayNode {
     private var currentForegroundColor: UIColor?
     private let imageNodeContainer: ASDisplayNode
     private let imageNode: ASImageNode
-    
+
     private var absoluteLocation: (CGRect, CGSize)?
     private var isCurrentlyInHierarchy = false
     private var shouldBeAnimating = false
-    
+
     override init() {
         self.imageNodeContainer = ASDisplayNode()
         self.imageNodeContainer.isLayerBacked = true
-        
+
         self.imageNode = ASImageNode()
         self.imageNode.isLayerBacked = true
         self.imageNode.displaysAsynchronously = false
         self.imageNode.displayWithoutProcessing = true
         self.imageNode.contentMode = .scaleToFill
-        
+
         super.init()
-        
+
         self.isLayerBacked = true
         self.clipsToBounds = true
-        
+
         self.imageNodeContainer.addSubnode(self.imageNode)
         self.addSubnode(self.imageNodeContainer)
     }
-    
+
     override func didEnterHierarchy() {
         super.didEnterHierarchy()
-        
+
         self.isCurrentlyInHierarchy = true
         self.updateAnimation()
     }
-    
+
     override func didExitHierarchy() {
         super.didExitHierarchy()
-        
+
         self.isCurrentlyInHierarchy = false
         self.updateAnimation()
     }
-    
+
     func update(backgroundColor: UIColor, foregroundColor: UIColor) {
         if let currentBackgroundColor = self.currentBackgroundColor, currentBackgroundColor.isEqual(backgroundColor), let currentForegroundColor = self.currentForegroundColor, currentForegroundColor.isEqual(foregroundColor) {
             return
         }
         self.currentBackgroundColor = backgroundColor
         self.currentForegroundColor = foregroundColor
-        
+
         self.imageNode.image = generateImage(CGSize(width: 4.0, height: 320.0), opaque: true, scale: 1.0, rotatedContext: { size, context in
             context.setFillColor(backgroundColor.cgColor)
             context.fill(CGRect(origin: CGPoint(), size: size))
-            
+
             context.clip(to: CGRect(origin: CGPoint(), size: size))
-            
+
             let transparentColor = foregroundColor.withAlphaComponent(0.0).cgColor
             let peakColor = foregroundColor.cgColor
-            
+
             var locations: [CGFloat] = [0.0, 0.5, 1.0]
             let colors: [CGColor] = [transparentColor, peakColor, transparentColor]
-            
+
             let colorSpace = CGColorSpaceCreateDeviceRGB()
             let gradient = CGGradient(colorsSpace: colorSpace, colors: colors as CFArray, locations: &locations)!
-            
+
             context.drawLinearGradient(gradient, start: CGPoint(x: 0.0, y: 0.0), end: CGPoint(x: 0.0, y: size.height), options: CGGradientDrawingOptions())
         })
     }
-    
+
     func updateAbsoluteRect(_ rect: CGRect, within containerSize: CGSize) {
         if let absoluteLocation = self.absoluteLocation, absoluteLocation.0 == rect && absoluteLocation.1 == containerSize {
             return
@@ -96,19 +96,19 @@ private final class ShimmerEffectNode: ASDisplayNode {
         let sizeUpdated = self.absoluteLocation?.1 != containerSize
         let frameUpdated = self.absoluteLocation?.0 != rect
         self.absoluteLocation = (rect, containerSize)
-        
+
         if sizeUpdated {
             if self.shouldBeAnimating {
                 self.imageNode.layer.removeAnimation(forKey: "shimmer")
                 self.addImageAnimation()
             }
         }
-        
+
         if frameUpdated {
             self.imageNodeContainer.frame = CGRect(origin: CGPoint(x: -rect.minX, y: -rect.minY), size: containerSize)
         }
     }
-    
+
     private func updateAnimation() {
         let shouldBeAnimating = self.isCurrentlyInHierarchy && self.absoluteLocation != nil
         if shouldBeAnimating != self.shouldBeAnimating {
@@ -120,7 +120,7 @@ private final class ShimmerEffectNode: ASDisplayNode {
             }
         }
     }
-    
+
     private func addImageAnimation() {
         guard let containerSize = self.absoluteLocation?.1 else {
             return
@@ -139,57 +139,57 @@ private final class LoadingShimmerNode: ASDisplayNode {
         case circle(CGRect)
         case roundedRectLine(startPoint: CGPoint, width: CGFloat, diameter: CGFloat)
     }
-    
+
     private let backgroundNode: ASDisplayNode
     private let effectNode: ShimmerEffectNode
     private let foregroundNode: ASImageNode
-    
+
     private var currentShapes: [Shape] = []
     private var currentBackgroundColor: UIColor?
     private var currentForegroundColor: UIColor?
     private var currentShimmeringColor: UIColor?
     private var currentSize = CGSize()
-    
+
     override init() {
         self.backgroundNode = ASDisplayNode()
-        
+
         self.effectNode = ShimmerEffectNode()
-        
+
         self.foregroundNode = ASImageNode()
         self.foregroundNode.displaysAsynchronously = false
         self.foregroundNode.displayWithoutProcessing = true
-        
+
         super.init()
-        
+
         self.addSubnode(self.backgroundNode)
         self.addSubnode(self.effectNode)
         self.addSubnode(self.foregroundNode)
     }
-    
+
     func updateAbsoluteRect(_ rect: CGRect, within containerSize: CGSize) {
         self.effectNode.updateAbsoluteRect(rect, within: containerSize)
     }
-    
+
     func update(backgroundColor: UIColor, foregroundColor: UIColor, shimmeringColor: UIColor, shapes: [Shape], size: CGSize) {
         if self.currentShapes == shapes, let currentBackgroundColor = self.currentBackgroundColor, currentBackgroundColor.isEqual(backgroundColor), let currentForegroundColor = self.currentForegroundColor, currentForegroundColor.isEqual(foregroundColor), let currentShimmeringColor = self.currentShimmeringColor, currentShimmeringColor.isEqual(shimmeringColor), self.currentSize == size {
             return
         }
-        
+
         self.currentBackgroundColor = backgroundColor
         self.currentForegroundColor = foregroundColor
         self.currentShimmeringColor = shimmeringColor
         self.currentShapes = shapes
         self.currentSize = size
-        
+
         self.backgroundNode.backgroundColor = foregroundColor
-        
+
         self.effectNode.update(backgroundColor: foregroundColor, foregroundColor: shimmeringColor)
-        
+
         self.foregroundNode.image = generateImage(size, rotatedContext: { size, context in
             context.setFillColor(backgroundColor.cgColor)
             context.setBlendMode(.copy)
             context.fill(CGRect(origin: CGPoint(), size: size))
-            
+
             context.setFillColor(UIColor.clear.cgColor)
             for shape in shapes {
                 switch shape {
@@ -202,7 +202,7 @@ private final class LoadingShimmerNode: ASDisplayNode {
                 }
             }
         })
-        
+
         self.backgroundNode.frame = CGRect(origin: CGPoint(), size: size)
         self.foregroundNode.frame = CGRect(origin: CGPoint(), size: size)
         self.effectNode.frame = CGRect(origin: CGPoint(), size: size)
@@ -214,7 +214,7 @@ public struct ItemListPeerItemEditing: Equatable {
     public var editing: Bool
     public var canBeReordered: Bool
     public var revealed: Bool?
-    
+
     public init(editable: Bool, editing: Bool, canBeReordered: Bool = false, revealed: Bool?) {
         self.editable = editable
         self.editing = editing
@@ -234,7 +234,7 @@ public enum ItemListPeerItemText {
         case accent
         case constructive
     }
-    
+
     case presence
     case text(String, TextColor)
     case none
@@ -257,7 +257,7 @@ public struct ItemListPeerItemSwitch {
     public var value: Bool
     public var style: ItemListPeerItemSwitchStyle
     public var isEnabled: Bool
-    
+
     public init(value: Bool, style: ItemListPeerItemSwitchStyle, isEnabled: Bool = true) {
         self.value = value
         self.style = style
@@ -297,7 +297,7 @@ public struct ItemListPeerItemRevealOption {
     public var type: ItemListPeerItemRevealOptionType
     public var title: String
     public var action: () -> Void
-    
+
     public init(type: ItemListPeerItemRevealOptionType, title: String, action: @escaping () -> Void) {
         self.type = type
         self.title = title
@@ -307,7 +307,7 @@ public struct ItemListPeerItemRevealOption {
 
 public struct ItemListPeerItemRevealOptions {
     public var options: [ItemListPeerItemRevealOption]
-    
+
     public init(options: [ItemListPeerItemRevealOption]) {
         self.options = options
     }
@@ -315,7 +315,7 @@ public struct ItemListPeerItemRevealOptions {
 
 public struct ItemListPeerItemShimmering {
     public var alternationIndex: Int
-    
+
     public init(alternationIndex: Int) {
         self.alternationIndex = alternationIndex
     }
@@ -347,10 +347,10 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 self.resolveInlineStickers = resolveInlineStickers
             }
         }
-        
+
         case account(AccountContext)
         case custom(Custom)
-        
+
         public var accountPeerId: EnginePeer.Id {
             switch self {
             case let .account(context):
@@ -359,7 +359,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 return custom.accountPeerId
             }
         }
-        
+
         public var engine: TelegramEngine {
             switch self {
             case let .account(context):
@@ -368,7 +368,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 return custom.engine
             }
         }
-        
+
         public var animationCache: AnimationCache {
             switch self {
             case let .account(context):
@@ -377,7 +377,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 return custom.animationCache
             }
         }
-        
+
         public var animationRenderer: MultiAnimationRenderer {
             switch self {
             case let .account(context):
@@ -386,7 +386,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 return custom.animationRenderer
             }
         }
-        
+
         public var isPremiumDisabled: Bool {
             switch self {
             case let .account(context):
@@ -395,7 +395,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 return custom.isPremiumDisabled
             }
         }
-        
+
         public var resolveInlineStickers: ([Int64]) -> Signal<[Int64: TelegramMediaFile], NoError> {
             switch self {
             case let .account(context):
@@ -406,7 +406,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 return custom.resolveInlineStickers
             }
         }
-        
+
         public var energyUsageSettings: EnergyUsageSettings {
             switch self {
             case let .account(context):
@@ -415,7 +415,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
                 return .default
             }
         }
-        
+
         public var contentSettings: ContentSettings {
             switch self {
             case let .account(context):
@@ -425,7 +425,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
             }
         }
     }
-    
+
     let presentationData: ItemListPresentationData
     let systemStyle: ItemListSystemStyle
     let dateTimeFormat: PresentationDateTimeFormat
@@ -472,7 +472,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
     public var hasActiveRevealOptions: Bool {
         return self.editing.revealed == true
     }
-    
+
     public init(
         presentationData: ItemListPresentationData,
         systemStyle: ItemListSystemStyle = .legacy,
@@ -560,7 +560,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
         self.storyStats = storyStats
         self.openStories = openStories
     }
-        
+
     public init(
         presentationData: ItemListPresentationData,
         systemStyle: ItemListSystemStyle = .legacy,
@@ -648,15 +648,15 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
         self.storyStats = storyStats
         self.openStories = openStories
     }
-    
+
     public func nodeConfiguredForParams(async: @escaping (@escaping () -> Void) -> Void, params: ListViewItemLayoutParams, synchronousLoads: Bool, previousItem: ListViewItem?, nextItem: ListViewItem?, completion: @escaping (ListViewItemNode, @escaping () -> (Signal<Void, NoError>?, (ListViewItemApply) -> Void)) -> Void) {
         async {
             let node = ItemListPeerItemNode()
             let (layout, apply) = node.asyncLayout()(self, params, itemListNeighbors(item: self, topItem: previousItem as? ItemListItem, bottomItem: nextItem as? ItemListItem), self.getHeaderAtTop(top: previousItem, bottom: nextItem))
-            
+
             node.contentSize = layout.contentSize
             node.insets = layout.insets
-            
+
             Queue.mainQueue().async {
                 completion(node, {
                     return (node.avatarNode.ready, { _ in apply(synchronousLoads, false) })
@@ -664,7 +664,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
             }
         }
     }
-    
+
     private func getHeaderAtTop(top: ListViewItem?, bottom: ListViewItem?) -> Bool {
         var headerAtTop = false
         if let top = top as? ItemListPeerItem, top.header != nil {
@@ -674,20 +674,20 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
         } else if self.header != nil {
             headerAtTop = true
         }
-        
+
         return headerAtTop
     }
-    
+
     public func updateNode(async: @escaping (@escaping () -> Void) -> Void, node: @escaping () -> ListViewItemNode, params: ListViewItemLayoutParams, previousItem: ListViewItem?, nextItem: ListViewItem?, animation: ListViewItemUpdateAnimation, completion: @escaping (ListViewItemNodeLayout, @escaping (ListViewItemApply) -> Void) -> Void) {
         Queue.mainQueue().async {
             if let nodeValue = node() as? ItemListPeerItemNode {
                 let makeLayout = nodeValue.asyncLayout()
-                
+
                 var animated = true
                 if case .None = animation {
                     animated = false
                 }
-                
+
                 async {
                     let (layout, apply) = makeLayout(self, params, itemListNeighbors(item: self, topItem: previousItem as? ItemListItem, bottomItem: nextItem as? ItemListItem), self.getHeaderAtTop(top: previousItem, bottom: nextItem))
                     Queue.mainQueue().async {
@@ -699,7 +699,7 @@ public final class ItemListPeerItem: ListViewItem, ItemListItem, ItemListRevealO
             }
         }
     }
-    
+
     public func selected(listView: ListView){
         listView.clearHighlightAnimated(true)
         self.action?()
@@ -715,20 +715,20 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
     private let highlightedBackgroundNode: ASDisplayNode
     private var disabledOverlayNode: ASDisplayNode?
     private let maskNode: ASImageNode
-    
+
     private let containerNode: ContextControllerSourceNode
     public override var controlsContainer: ASDisplayNode {
         return self.containerNode
     }
-    
+
     fileprivate let avatarNode: AvatarNode
     private var avatarIconComponent: EmojiStatusComponent?
     private var avatarIconView: ComponentView<Empty>?
-    
+
     private var customAvatarIconView: UIImageView?
-    
+
     private var avatarButton: HighlightTrackingButton?
-    
+
     private let titleNode: TextNode
     private let labelNode: TextNodeWithEntities
     private let labelBadgeNode: ASImageNode
@@ -738,19 +738,21 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
     private var credibilityIconView: ComponentHostView<Empty>?
     private var verifiedIconComponent: EmojiStatusComponent?
     private var verifiedIconView: ComponentHostView<Empty>?
+    private var winterGramIconComponent: EmojiStatusComponent?
+    private var winterGramIconView: ComponentHostView<Empty>?
     private var switchNode: SwitchNode?
     private var checkNode: ASImageNode?
     private var leftCheckNode: CheckNode?
-    
+
     private var shimmerNode: LoadingShimmerNode?
     private var absoluteLocation: (CGRect, CGSize)?
-    
+
     private var peerPresenceManager: PeerPresenceStatusManager?
     private var layoutParams: (ItemListPeerItem, ListViewItemLayoutParams, ItemListNeighbors, Bool)?
-    
+
     private var editableControlNode: ItemListEditableControlNode?
     private var reorderControlNode: ItemListEditableReorderControlNode?
-    
+
     override public var visibility: ListViewItemNodeVisibility {
         didSet {
             let wasVisible = self.visibilityStatus
@@ -766,7 +768,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             }
         }
     }
-    
+
     private var visibilityStatus: Bool = false {
         didSet {
             if self.visibilityStatus != oldValue {
@@ -797,7 +799,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             }
         }
     }
-        
+
     override public var canBeSelected: Bool {
         if self.editableControlNode != nil || self.disabledOverlayNode != nil {
             return false
@@ -808,66 +810,66 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             return false
         }
     }
-    
+
     public var tag: ItemListItemTag? {
         return self.layoutParams?.0.tag
     }
-    
+
     public init() {
         self.backgroundNode = ASDisplayNode()
         self.backgroundNode.isLayerBacked = true
-        
+
         self.topStripeNode = ASDisplayNode()
         self.topStripeNode.isLayerBacked = true
-        
+
         self.bottomStripeNode = ASDisplayNode()
         self.bottomStripeNode.isLayerBacked = true
-        
+
         self.maskNode = ASImageNode()
         self.maskNode.isUserInteractionEnabled = false
-        
+
         self.containerNode = ContextControllerSourceNode()
-        
+
         self.avatarNode = AvatarNode(font: avatarPlaceholderFont(size: floor(40.0 * 16.0 / 37.0)))
         //self.avatarNode.isLayerBacked = !smartInvertColorsEnabled()
-        
+
         self.titleNode = TextNode()
         self.titleNode.isUserInteractionEnabled = false
         self.titleNode.contentMode = .left
         self.titleNode.contentsScale = UIScreen.main.scale
-        
+
         self.statusNode = TextNode()
         self.statusNode.isUserInteractionEnabled = false
         self.statusNode.contentMode = .left
         self.statusNode.contentsScale = UIScreen.main.scale
-        
+
         self.labelNode = TextNodeWithEntities()
-        
+
         self.labelBadgeNode = ASImageNode()
         self.labelBadgeNode.displayWithoutProcessing = true
         self.labelBadgeNode.displaysAsynchronously = false
         self.labelBadgeNode.isLayerBacked = true
-        
+
         self.highlightedBackgroundNode = ASDisplayNode()
         self.highlightedBackgroundNode.isLayerBacked = true
-        
+
         super.init(layerBacked: false, rotated: false, seeThrough: false)
-        
+
         self.isAccessibilityElement = true
-        
+
         self.addSubnode(self.containerNode)
         self.containerNode.addSubnode(self.avatarNode)
         self.containerNode.addSubnode(self.titleNode)
         self.containerNode.addSubnode(self.statusNode)
         self.containerNode.addSubnode(self.labelNode.textNode)
-        
+
         self.peerPresenceManager = PeerPresenceStatusManager(update: { [weak self] in
             if let strongSelf = self, let layoutParams = strongSelf.layoutParams {
                 let (_, apply) = strongSelf.asyncLayout()(layoutParams.0, layoutParams.1, layoutParams.2, layoutParams.3)
                 apply(false, true)
             }
         })
-        
+
         self.containerNode.activated = { [weak self] gesture, _ in
             guard let strongSelf = self, let item = strongSelf.layoutParams?.0, let contextAction = item.contextAction else {
                 gesture.cancel()
@@ -876,13 +878,13 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             contextAction(strongSelf.containerNode, gesture)
         }
     }
-    
+
     override public func didLoad() {
         super.didLoad()
-        
+
         self.updateEnableGestures()
     }
-    
+
     private func updateEnableGestures() {
         if let item = self.layoutParams?.0, item.disableInteractiveTransitionIfNecessary, let revealOptions = item.revealOptions, !revealOptions.options.isEmpty {
             self.view.disablesInteractiveTransitionGestureRecognizer = true
@@ -890,42 +892,42 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             self.view.disablesInteractiveTransitionGestureRecognizer = false
         }
     }
-    
+
     public func asyncLayout() -> (_ item: ItemListPeerItem, _ params: ListViewItemLayoutParams, _ neighbors: ItemListNeighbors, _ headerAtTop: Bool) -> (ListViewItemNodeLayout, (Bool, Bool) -> Void) {
         let makeTitleLayout = TextNode.asyncLayout(self.titleNode)
         let makeStatusLayout = TextNode.asyncLayout(self.statusNode)
         let makeLabelLayout = TextNodeWithEntities.asyncLayout(self.labelNode)
         let editableControlLayout = ItemListEditableControlNode.asyncLayout(self.editableControlNode)
         let reorderControlLayout = ItemListEditableReorderControlNode.asyncLayout(self.reorderControlNode)
-        
+
         var currentDisabledOverlayNode = self.disabledOverlayNode
-        
+
         var currentSwitchNode = self.switchNode
         var currentCheckNode = self.checkNode
-        
+
         let currentLabelArrowNode = self.labelArrowNode
-        
+
         let currentItem = self.layoutParams?.0
-        
+
         let currentHasBadge = self.labelBadgeNode.image != nil
-        
+
         return { item, params, neighbors, headerAtTop in
             var updateArrowImage: UIImage?
-            
+
             let statusFontSize: CGFloat = floor(item.presentationData.fontSize.itemListBaseFontSize * 14.0 / 17.0)
             let labelFontSize: CGFloat = floor(item.presentationData.fontSize.itemListBaseFontSize * 13.0 / 17.0)
-            
+
             let titleFont = Font.regular(item.presentationData.fontSize.itemListBaseFontSize)
             let titleBoldFont = Font.medium(item.presentationData.fontSize.itemListBaseFontSize)
             let statusFont = Font.regular(statusFontSize)
             let labelFont = Font.regular(labelFontSize)
             let labelDisclosureFont = Font.regular(item.presentationData.fontSize.itemListBaseFontSize)
-            
+
             var updatedLabelBadgeImage: UIImage?
             var credibilityIcon: EmojiStatusComponent.Content?
             var credibilityParticleColor: UIColor?
             var verifiedIcon: EmojiStatusComponent.Content?
-            
+
             if case .threatSelfAsSaved = item.aliasHandling, item.peer.id == item.context.accountPeerId {
             } else {
                 if item.peer.isScam {
@@ -937,10 +939,10 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                     if let color = emojiStatus.color {
                         credibilityParticleColor = UIColor(rgb: UInt32(bitPattern: color))
                     }
-                } else if item.peer.isPremium && !item.context.isPremiumDisabled {
+                } else if item.peer.isPremium && !currentWinterGramSettings.hidePremiumStatuses && !item.context.isPremiumDisabled {
                     credibilityIcon = .premium(color: item.presentationData.theme.list.itemAccentColor)
                 }
-                
+
                 if item.peer.isVerified {
                     credibilityIcon = .verified(fillColor: item.presentationData.theme.list.itemCheckColors.fillColor, foregroundColor: item.presentationData.theme.list.itemCheckColors.foregroundColor, sizeType: .compact)
                     credibilityParticleColor = nil
@@ -949,7 +951,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                     verifiedIcon = .animation(content: .customEmoji(fileId: verificationIconFileId), size: CGSize(width: 32.0, height: 32.0), placeholderColor: item.presentationData.theme.list.mediaPlaceholderColor, themeColor: item.presentationData.theme.list.itemAccentColor, loopMode: .count(0))
                 }
             }
-            
+
             var titleIconsWidth: CGFloat = 0.0
             if let verifiedIcon = verifiedIcon {
                 titleIconsWidth += 4.0
@@ -973,14 +975,18 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                     titleIconsWidth += 16.0
                 }
             }
-            
+            let isWinterGramOfficial = isWinterGramOfficialPeer(item.peer)
+            if isWinterGramOfficial {
+                titleIconsWidth += 4.0 + 16.0
+            }
+
             var badgeColor: UIColor?
             if case .badge = item.label {
                 badgeColor = item.presentationData.theme.list.itemAccentColor
             } else if case let .text(_, _, color, hasBackground) = item.label, let color, hasBackground {
                 badgeColor = color.withMultipliedAlpha(0.1)
             }
-            
+
             let badgeDiameter: CGFloat = 20.0
             if currentItem?.presentationData.theme !== item.presentationData.theme {
                 updateArrowImage = PresentationResourcesItemList.disclosureArrowImage(item.presentationData.theme)
@@ -990,11 +996,11 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             } else if let badgeColor = badgeColor, !currentHasBadge {
                 updatedLabelBadgeImage = generateStretchableFilledCircleImage(diameter: badgeDiameter, color: badgeColor)
             }
-            
+
             var titleAttributedString: NSAttributedString?
             var statusAttributedString: NSAttributedString?
             var labelAttributedString: NSAttributedString?
-            
+
             let peerRevealOptions: [ItemListRevealOption]
             if item.editing.editable && item.enabled {
                 if let revealOptions = item.revealOptions {
@@ -1027,13 +1033,13 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             } else {
                 peerRevealOptions = []
             }
-            
+
             var additionalLeftInset: CGFloat = 0.0
             var leftInset: CGFloat = params.leftInset
             var rightInset: CGFloat = params.rightInset
             var switchSize = CGSize(width: 51.0, height: 31.0)
             var checkImage: UIImage?
-            
+
             if let switchValue = item.switchValue {
                 switch switchValue.style {
                 case .standard:
@@ -1059,14 +1065,14 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                 currentSwitchNode = nil
                 currentCheckNode = nil
             }
-            
+
             if let currentSwitchNode, let switchView = currentSwitchNode.view as? UISwitch {
                 if currentSwitchNode.bounds.size.width.isZero {
                     switchView.sizeToFit()
                 }
                 switchSize = switchView.bounds.size
             }
-            
+
             let titleColor: UIColor
             switch item.nameColor {
             case .primary:
@@ -1074,7 +1080,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             case .secret:
                 titleColor = item.presentationData.theme.chatList.secretTitleColor
             }
-            
+
             let currentBoldFont: UIFont
             switch item.nameStyle {
             case .distinctBold:
@@ -1082,7 +1088,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             case .plain:
                 currentBoldFont = titleFont
             }
-            
+
             if let threadInfo = item.threadInfo {
                 titleAttributedString = NSAttributedString(string: threadInfo.title, font: currentBoldFont, textColor: titleColor)
             } else if item.peer.id == item.context.accountPeerId, case .threatSelfAsSaved = item.aliasHandling {
@@ -1117,7 +1123,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             } else if case let .channel(channel) = item.peer {
                 titleAttributedString = NSAttributedString(string: channel.title, font: currentBoldFont, textColor: titleColor)
             }
-            
+
             switch item.text {
             case .presence:
                 if case let .user(user) = item.peer, let botInfo = user.botInfo {
@@ -1188,17 +1194,17 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                 leftInset += 65.0
                 avatarFontSize = floor(40.0 * 16.0 / 37.0)
             }
-            
+
             var editableControlSizeAndApply: (CGFloat, (CGFloat) -> ItemListEditableControlNode)?
             var reorderControlSizeAndApply: (CGFloat, (CGFloat, Bool, ContainedViewLayoutTransition) -> ItemListEditableReorderControlNode)?
-            
+
             let editingOffset: CGFloat
             var reorderInset: CGFloat = 0.0
             if item.editing.editing {
                 let sizeAndApply = editableControlLayout(item.presentationData.theme, false)
                 editableControlSizeAndApply = sizeAndApply
                 editingOffset = sizeAndApply.0
-                
+
                 if item.editing.canBeReordered {
                     let reorderSizeAndApply = reorderControlLayout(item.presentationData.theme)
                     reorderControlSizeAndApply = reorderSizeAndApply
@@ -1207,7 +1213,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             } else {
                 editingOffset = 0.0
             }
-            
+
             var labelMaximumNumberOfLines = 1
             var labelInset: CGFloat = 0.0
             var labelAlignment: NSTextAlignment = .natural
@@ -1249,17 +1255,17 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                 labelAttributedString = NSAttributedString(string: text, font: badgeFont, textColor: item.presentationData.theme.list.itemCheckColors.foregroundColor)
                 labelInset += 15.0
             }
-            
+
             labelInset += reorderInset
-            
+
             let (labelLayout, labelApply) = makeLabelLayout(TextNodeLayoutArguments(attributedString: labelAttributedString, backgroundColor: nil, maximumNumberOfLines: labelMaximumNumberOfLines, truncationType: .end, constrainedSize: CGSize(width: params.width - leftInset - 16.0 - editingOffset - rightInset, height: CGFloat.greatestFiniteMagnitude), alignment: labelAlignment, lineSpacing: labelLineSpacing, cutout: nil, insets: UIEdgeInsets()))
-            
+
             let constrainedTitleSize = CGSize(width: params.width - leftInset - 12.0 - editingOffset - rightInset - labelLayout.size.width - labelInset - titleIconsWidth, height: CGFloat.greatestFiniteMagnitude)
             let (titleLayout, titleApply) = makeTitleLayout(TextNodeLayoutArguments(attributedString: titleAttributedString, backgroundColor: nil, maximumNumberOfLines: 1, truncationType: .end, constrainedSize: constrainedTitleSize, alignment: .natural, cutout: nil, insets: UIEdgeInsets()))
-            
+
             let constrainedStatusSize = CGSize(width: params.width - leftInset - 8.0 - editingOffset - rightInset - labelLayout.size.width - labelInset, height: CGFloat.greatestFiniteMagnitude)
             let (statusLayout, statusApply) = makeStatusLayout(TextNodeLayoutArguments(attributedString: statusAttributedString, backgroundColor: nil, maximumNumberOfLines: 1, truncationType: .end, constrainedSize: constrainedStatusSize, alignment: .natural, cutout: nil, insets: UIEdgeInsets()))
-            
+
             var insets = itemListNeighborsGroupedInsets(neighbors, params)
             if !item.hasTopGroupInset {
                 switch neighbors.top {
@@ -1276,19 +1282,19 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             if headerAtTop, let header = item.header {
                 insets.top += header.height + 18.0
             }
-            
+
             let titleSpacing: CGFloat = statusLayout.size.height == 0.0 ? 0.0 : 1.0
-            
+
             let minHeight: CGFloat = titleLayout.size.height + verticalInset * 2.0
             let rawHeight: CGFloat = verticalInset * 2.0 + titleLayout.size.height + titleSpacing + statusLayout.size.height
-            
+
             let contentSize = CGSize(width: params.width, height: max(minHeight, rawHeight))
             let separatorHeight = UIScreenPixel
             let separatorRightInset: CGFloat = item.systemStyle == .glass ? 16.0 : 0.0
-            
+
             let layout = ListViewItemNodeLayout(contentSize: contentSize, insets: insets)
             let layoutSize = layout.size
-            
+
             if !item.enabled {
                 if currentDisabledOverlayNode == nil {
                     currentDisabledOverlayNode = ASDisplayNode()
@@ -1297,16 +1303,16 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             } else {
                 currentDisabledOverlayNode = nil
             }
-            
+
             return (layout, { [weak self] synchronousLoad, animated in
                 if let strongSelf = self {
                     strongSelf.layoutParams = (item, params, neighbors, headerAtTop)
-                    
+
                     strongSelf.containerNode.frame = CGRect(origin: CGPoint(), size: layout.contentSize)
                     strongSelf.containerNode.isGestureEnabled = item.contextAction != nil
-                    
+
                     strongSelf.avatarNode.font = avatarPlaceholderFont(size: avatarFontSize)
-                    
+
                     strongSelf.accessibilityLabel = titleAttributedString?.string
                     var combinedValueString = ""
                     if let statusString = statusAttributedString?.string, !statusString.isEmpty {
@@ -1315,13 +1321,13 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                     if let labelString = labelAttributedString?.string, !labelString.isEmpty {
                         combinedValueString.append(", \(labelString)")
                     }
-                    
+
                     strongSelf.accessibilityValue = combinedValueString
-                    
+
                     if let updateArrowImage = updateArrowImage {
                         strongSelf.labelArrowNode?.image = updateArrowImage
                     }
-                    
+
                     let itemBackgroundColor: UIColor
                     let itemSeparatorColor: UIColor
                     switch item.style {
@@ -1332,23 +1338,23 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         itemBackgroundColor = item.presentationData.theme.list.itemBlocksBackgroundColor
                         itemSeparatorColor = item.presentationData.theme.list.itemBlocksSeparatorColor
                     }
-                    
+
                     strongSelf.topStripeNode.backgroundColor = itemSeparatorColor
                     strongSelf.bottomStripeNode.backgroundColor = itemSeparatorColor
                     strongSelf.backgroundNode.backgroundColor = itemBackgroundColor
                     strongSelf.highlightedBackgroundNode.backgroundColor = item.presentationData.theme.list.itemHighlightedBackgroundColor
-                    
+
                     strongSelf.backgroundNode.isHidden = !item.displayBackground
-                    
+
                     let revealOffset = strongSelf.revealOffset
-                    
+
                     let transition: ContainedViewLayoutTransition
                     if animated {
                         transition = ContainedViewLayoutTransition.animated(duration: 0.4, curve: .spring)
                     } else {
                         transition = .immediate
                     }
-                                        
+
                     if let currentDisabledOverlayNode = currentDisabledOverlayNode {
                         if currentDisabledOverlayNode != strongSelf.disabledOverlayNode {
                             strongSelf.disabledOverlayNode = currentDisabledOverlayNode
@@ -1365,7 +1371,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         })
                         strongSelf.disabledOverlayNode = nil
                     }
-                    
+
                     if let editableControlSizeAndApply = editableControlSizeAndApply {
                         let editableControlFrame = CGRect(origin: CGPoint(x: params.leftInset + revealOffset, y: 0.0), size: CGSize(width: editableControlSizeAndApply.0, height: layout.contentSize.height))
                         if strongSelf.editableControlNode == nil {
@@ -1395,7 +1401,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             editableControlNode?.removeFromSupernode()
                         })
                     }
-                    
+
                     if let reorderControlSizeAndApply = reorderControlSizeAndApply {
                         if strongSelf.reorderControlNode == nil {
                             let reorderControlNode = reorderControlSizeAndApply.1(layout.contentSize.height, false, .immediate)
@@ -1412,7 +1418,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             reorderControlNode?.removeFromSupernode()
                         })
                     }
-                    
+
                     let _ = titleApply()
                     let _ = statusApply()
                     if case let .account(context) = item.context {
@@ -1421,7 +1427,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         let _ = labelApply(nil)
                     }
                     strongSelf.labelNode.textNode.isHidden = labelAttributedString == nil
-                    
+
                     if strongSelf.backgroundNode.supernode == nil {
                         strongSelf.insertSubnode(strongSelf.backgroundNode, at: 0)
                     }
@@ -1434,7 +1440,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                     if strongSelf.maskNode.supernode == nil {
                         strongSelf.addSubnode(strongSelf.maskNode)
                     }
-                    
+
                     let hasCorners = itemListHasRoundedBlockLayout(params) && !item.noCorners
                     var hasTopCorners = false
                     var hasBottomCorners = false
@@ -1461,22 +1467,22 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         bottomStripeIsHidden = hasCorners || !item.displayDecorations
                     }
                     strongSelf.updateRevealOptionsSeparatorNodes(top: strongSelf.topStripeNode, bottom: strongSelf.bottomStripeNode, topIsHidden: topStripeIsHidden, bottomIsHidden: bottomStripeIsHidden, topHiddenByPreviousRevealOptions: neighbors.topHasActiveRevealOptions, bottomHiddenByNextRevealOptions: neighbors.bottomHasActiveRevealOptions)
-                    
+
                     strongSelf.maskNode.image = hasCorners ? PresentationResourcesItemList.cornersImage(item.presentationData.theme, top: hasTopCorners, bottom: hasBottomCorners, glass: item.systemStyle == .glass) : nil
-                    
+
                     strongSelf.backgroundNode.frame = CGRect(origin: CGPoint(x: 0.0, y: -min(insets.top, separatorHeight)), size: CGSize(width: params.width, height: contentSize.height + min(insets.top, separatorHeight) + min(insets.bottom, separatorHeight)))
                     strongSelf.maskNode.frame = strongSelf.backgroundNode.frame.insetBy(dx: params.leftInset, dy: 0.0)
                     transition.updateFrame(node: strongSelf.topStripeNode, frame: CGRect(origin: CGPoint(x: 0.0, y: -min(insets.top, separatorHeight)), size: CGSize(width: layoutSize.width, height: separatorHeight)))
                     transition.updateFrame(node: strongSelf.bottomStripeNode, frame: CGRect(origin: CGPoint(x: bottomStripeInset, y: contentSize.height + bottomStripeOffset), size: CGSize(width: layoutSize.width - bottomStripeInset - params.rightInset - separatorRightInset, height: separatorHeight)))
-                    
+
                     var titleFrame = CGRect(origin: CGPoint(x: leftInset + revealOffset + editingOffset, y: verticalInset + verticalOffset), size: titleLayout.size)
-                    
+
                     var titleLeftOffset: CGFloat = 0.0
                     var nextIconX: CGFloat = titleFrame.maxX
                     if let verifiedIcon {
                         let animationCache = item.context.animationCache
                         let animationRenderer = item.context.animationRenderer
-                        
+
                         var verifiedIconTransition = transition
                         let verifiedIconView: ComponentHostView<Empty>
                         if let current = strongSelf.verifiedIconView {
@@ -1487,7 +1493,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             strongSelf.containerNode.view.addSubview(verifiedIconView)
                             strongSelf.verifiedIconView = verifiedIconView
                         }
-                        
+
                         let verifiedIconComponent = EmojiStatusComponent(
                             postbox: item.context.engine.account.postbox,
                             energyUsageSettings: item.context.energyUsageSettings,
@@ -1500,16 +1506,16 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             emojiFileUpdated: nil
                         )
                         strongSelf.verifiedIconComponent = verifiedIconComponent
-                                                
+
                         let iconSize = verifiedIconView.update(
                             transition: .immediate,
                             component: AnyComponent(verifiedIconComponent),
                             environment: {},
                             containerSize: CGSize(width: 16.0, height: 16.0)
                         )
-                        
+
                         verifiedIconTransition.updateFrame(view: verifiedIconView, frame: CGRect(origin: CGPoint(x: titleFrame.minX, y: floorToScreenPixels(titleFrame.midY - iconSize.height / 2.0)), size: iconSize))
-                      
+
                         titleLeftOffset += iconSize.width + 4.0
                         nextIconX += iconSize.width + 4.0
                     } else if let verifiedIconView = strongSelf.verifiedIconView {
@@ -1517,14 +1523,14 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         verifiedIconView.removeFromSuperview()
                     }
                     titleFrame = titleFrame.offsetBy(dx: titleLeftOffset, dy: 0.0)
-                    
+
                     transition.updateFrame(node: strongSelf.titleNode, frame: titleFrame)
                     transition.updateFrame(node: strongSelf.statusNode, frame: CGRect(origin: CGPoint(x: leftInset + revealOffset + editingOffset, y: strongSelf.titleNode.frame.maxY + titleSpacing), size: statusLayout.size))
-                    
+
                     if let credibilityIcon = credibilityIcon {
                         let animationCache = item.context.animationCache
                         let animationRenderer = item.context.animationRenderer
-                        
+
                         var creditibilityIconTransition = transition
                         let credibilityIconView: ComponentHostView<Empty>
                         if let current = strongSelf.credibilityIconView {
@@ -1535,7 +1541,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             strongSelf.containerNode.view.addSubview(credibilityIconView)
                             strongSelf.credibilityIconView = credibilityIconView
                         }
-                        
+
                         let credibilityIconComponent = EmojiStatusComponent(
                             postbox: item.context.engine.account.postbox,
                             energyUsageSettings: item.context.energyUsageSettings,
@@ -1555,14 +1561,59 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             environment: {},
                             containerSize: CGSize(width: 20.0, height: 20.0)
                         )
-                        
+
                         nextIconX += 4.0
                         creditibilityIconTransition.updateFrame(view: credibilityIconView, frame: CGRect(origin: CGPoint(x: nextIconX, y: floorToScreenPixels(titleFrame.midY - iconSize.height / 2.0)), size: iconSize))
+                        // Advance past the credibility icon so a following badge (e.g. the WinterGram
+                        // snowflake) lands to its right instead of overlapping it.
+                        nextIconX += iconSize.width
                     } else if let credibilityIconView = strongSelf.credibilityIconView {
                         strongSelf.credibilityIconView = nil
                         credibilityIconView.removeFromSuperview()
                     }
-                    
+
+                    if isWinterGramOfficial {
+                        let animationCache = item.context.animationCache
+                        let animationRenderer = item.context.animationRenderer
+
+                        var winterGramIconTransition = transition
+                        let winterGramIconView: ComponentHostView<Empty>
+                        if let current = strongSelf.winterGramIconView {
+                            winterGramIconView = current
+                        } else {
+                            winterGramIconTransition = .immediate
+                            winterGramIconView = ComponentHostView<Empty>()
+                            strongSelf.containerNode.view.addSubview(winterGramIconView)
+                            strongSelf.winterGramIconView = winterGramIconView
+                        }
+
+                        let winterGramIconComponent = EmojiStatusComponent(
+                            postbox: item.context.engine.account.postbox,
+                            energyUsageSettings: item.context.energyUsageSettings,
+                            resolveInlineStickers: item.context.resolveInlineStickers,
+                            animationCache: animationCache,
+                            animationRenderer: animationRenderer,
+                            content: isWinterGramOfficialPeer(item.peer) ? .winterGramBadge(backplateColor: winterGramBadgeBackplateColor(theme: item.presentationData.theme)) : EmojiStatusComponent.Content.none,
+                            isVisibleForAnimations: strongSelf.visibilityStatus,
+                            action: nil,
+                            emojiFileUpdated: nil
+                        )
+                        strongSelf.winterGramIconComponent = winterGramIconComponent
+                        let iconSize = winterGramIconView.update(
+                            transition: .immediate,
+                            component: AnyComponent(winterGramIconComponent),
+                            environment: {},
+                            containerSize: CGSize(width: 16.0, height: 16.0)
+                        )
+
+                        nextIconX += 4.0
+                        winterGramIconTransition.updateFrame(view: winterGramIconView, frame: CGRect(origin: CGPoint(x: nextIconX, y: floorToScreenPixels(titleFrame.midY - iconSize.height / 2.0)), size: iconSize))
+                        nextIconX += iconSize.width
+                    } else if let winterGramIconView = strongSelf.winterGramIconView {
+                        strongSelf.winterGramIconView = nil
+                        winterGramIconView.removeFromSuperview()
+                    }
+
                     if let currentSwitchNode = currentSwitchNode {
                         if currentSwitchNode !== strongSelf.switchNode {
                             strongSelf.switchNode = currentSwitchNode
@@ -1581,7 +1632,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         switchNode.removeFromSupernode()
                         strongSelf.switchNode = nil
                     }
-                    
+
                     if let currentCheckNode = currentCheckNode {
                         if currentCheckNode !== strongSelf.checkNode {
                             strongSelf.checkNode = currentCheckNode
@@ -1598,9 +1649,9 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         checkNode.removeFromSupernode()
                         strongSelf.checkNode = nil
                     }
-                    
+
                     var rightLabelInset: CGFloat = 15.0 + params.rightInset
-                    
+
                     if let updatedLabelArrowNode = updatedLabelArrowNode {
                         strongSelf.labelArrowNode = updatedLabelArrowNode
                         strongSelf.containerNode.addSubnode(updatedLabelArrowNode)
@@ -1613,7 +1664,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         labelArrowNode.removeFromSupernode()
                         strongSelf.labelArrowNode = nil
                     }
-                    
+
                     if let updateBadgeImage = updatedLabelBadgeImage {
                         if strongSelf.labelBadgeNode.supernode == nil {
                             strongSelf.containerNode.insertSubnode(strongSelf.labelBadgeNode, belowSubnode: strongSelf.labelNode.textNode)
@@ -1624,19 +1675,19 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         strongSelf.labelBadgeNode.image = nil
                         strongSelf.labelBadgeNode.removeFromSupernode()
                     }
-                    
+
                     let badgeWidth = max(badgeDiameter, labelLayout.size.width + 12.0)
                     var labelFrame = CGRect(origin: CGPoint(x: revealOffset + params.width - labelLayout.size.width - rightLabelInset, y: floor((contentSize.height - labelLayout.size.height) / 2.0) + 1.0), size: labelLayout.size)
                     if strongSelf.labelBadgeNode.image != nil {
                         labelFrame.origin.x -= 6.0
                     }
                     transition.updateFrame(node: strongSelf.labelNode.textNode, frame: labelFrame)
-                    
+
                     strongSelf.labelBadgeNode.frame = CGRect(origin: CGPoint(x: floorToScreenPixels(labelFrame.midX - badgeWidth * 0.5), y: floorToScreenPixels(labelFrame.midY - badgeDiameter * 0.5)), size: CGSize(width: badgeWidth, height: badgeDiameter))
-                    
+
                     let avatarFrame = CGRect(origin: CGPoint(x: params.leftInset + additionalLeftInset + revealOffset + editingOffset + 15.0, y: floorToScreenPixels((layout.contentSize.height - avatarSize) / 2.0)), size: CGSize(width: avatarSize, height: avatarSize))
                     transition.updateFrame(node: strongSelf.avatarNode, frame: avatarFrame)
-                    
+
                     if item.storyStats != nil {
                         let avatarButton: HighlightTrackingButton
                         if let current = strongSelf.avatarButton {
@@ -1652,7 +1703,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                         strongSelf.avatarButton = nil
                         avatarButton.removeFromSuperview()
                     }
-                    
+
                     if let switchValue = item.switchValue, case .leftCheck = switchValue.style {
                         let leftCheckNode: CheckNode
                         if let current = strongSelf.leftCheckNode {
@@ -1673,13 +1724,13 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             leftCheckNode.removeFromSupernode()
                         }
                     }
-                    
+
                     if let threadInfo = item.threadInfo {
                         let threadIconSize = floor(avatarSize * 0.9)
                         let threadIconFrame = CGRect(origin: CGPoint(x: avatarFrame.minX + floor((avatarFrame.width - threadIconSize) / 2.0), y: avatarFrame.minY + floor((avatarFrame.height - threadIconSize) / 2.0)), size: CGSize(width: threadIconSize, height: threadIconSize))
-                        
+
                         strongSelf.avatarNode.isHidden = true
-                        
+
                         let avatarIconView: ComponentView<Empty>
                         if let current = strongSelf.avatarIconView {
                             avatarIconView = current
@@ -1687,14 +1738,14 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             avatarIconView = ComponentView<Empty>()
                             strongSelf.avatarIconView = avatarIconView
                         }
-                        
+
                         let avatarIconContent: EmojiStatusComponent.Content
                         if let fileId = threadInfo.icon, fileId != 0 {
                             avatarIconContent = .animation(content: .customEmoji(fileId: fileId), size: CGSize(width: 48.0, height: 48.0), placeholderColor: item.presentationData.theme.list.mediaPlaceholderColor, themeColor: item.presentationData.theme.list.itemAccentColor, loopMode: .forever)
                         } else {
                             avatarIconContent = .topic(title: String(threadInfo.title.prefix(1)), color: threadInfo.iconColor, size: threadIconFrame.size)
                         }
-                        
+
                         let avatarIconComponent = EmojiStatusComponent(
                             postbox: item.context.engine.account.postbox,
                             energyUsageSettings: item.context.energyUsageSettings,
@@ -1713,7 +1764,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             environment: {},
                             containerSize: threadIconFrame.size
                         )
-                        
+
                         if let avatarIconComponentView = avatarIconView.view {
                             if avatarIconComponentView.superview == nil {
                                 strongSelf.containerNode.view.addSubview(avatarIconComponentView)
@@ -1751,12 +1802,12 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                                 overrideImage = .deletedIcon
                             }
                             strongSelf.avatarNode.imageNode.animateFirstTransition = item.animateFirstAvatarTransition
-                            
+
                             var clipStyle: AvatarNodeClipStyle = .round
                             if case let .channel(channel) = item.peer, channel.isForumOrMonoForum {
                                 clipStyle = .roundedRect
                             }
-                            
+
                             strongSelf.avatarNode.setPeer(
                                 accountPeerId: item.context.accountPeerId,
                                 postbox: item.context.engine.account.postbox,
@@ -1769,7 +1820,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                                 clipStyle: clipStyle,
                                 synchronousLoad: synchronousLoad
                             )
-                            
+
                             strongSelf.avatarNode.setStoryStats(storyStats: item.storyStats.flatMap { storyStats in
                                 return AvatarNode.StoryStats(
                                     totalCount: storyStats.totalCount,
@@ -1784,17 +1835,17 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             ), transition: .immediate)
                         }
                     }
-                    
+
                     strongSelf.updateRevealOptionsHighlightedBackgroundFrame(strongSelf.highlightedBackgroundNode, frame: CGRect(origin: CGPoint(x: 0.0, y: -UIScreenPixel), size: CGSize(width: params.width, height: layout.contentSize.height + UIScreenPixel + UIScreenPixel)), transition: transition)
-                    
+
                     if let presence = item.presence {
                         strongSelf.peerPresenceManager?.reset(presence: presence)
                     }
-                    
+
                     if let shimmering = item.shimmering {
                         strongSelf.avatarNode.isHidden = true
                         strongSelf.titleNode.isHidden = true
-                        
+
                         let shimmerNode: LoadingShimmerNode
                         if let current = strongSelf.shimmerNode {
                             shimmerNode = current
@@ -1824,14 +1875,14 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                     } else if let shimmerNode = strongSelf.shimmerNode {
                         strongSelf.avatarNode.isHidden = false
                         strongSelf.titleNode.isHidden = false
-                        
+
                         strongSelf.shimmerNode = nil
                         shimmerNode.removeFromSupernode()
                     }
-                    
+
                     if let customAvatarIcon = item.customAvatarIcon {
                         strongSelf.avatarNode.isHidden = true
-                        
+
                         let customAvatarIconView: UIImageView
                         if let current = strongSelf.customAvatarIconView {
                             customAvatarIconView = current
@@ -1841,31 +1892,31 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                             strongSelf.containerNode.view.addSubview(customAvatarIconView)
                         }
                         customAvatarIconView.image = customAvatarIcon
-                        
+
                         transition.updateFrame(view: customAvatarIconView, frame: strongSelf.avatarNode.frame)
                     } else if let customAvatarIconView = strongSelf.customAvatarIconView {
                         strongSelf.customAvatarIconView = nil
                         customAvatarIconView.removeFromSuperview()
                     }
-                    
+
                     strongSelf.backgroundNode.isHidden = !item.displayDecorations
                     strongSelf.highlightedBackgroundNode.isHidden = !item.displayDecorations || !item.highlightable
-                    
+
                     strongSelf.updateLayout(size: layout.contentSize, leftInset: params.leftInset, rightInset: params.rightInset)
-                    
+
                     strongSelf.setRevealOptions((left: [], right: peerRevealOptions))
                     if let revealed = item.editing.revealed {
                         strongSelf.setRevealOptionsOpened(revealed, animated: animated)
                     }
-                    
+
                     strongSelf.updateIsHighlighted(transition: transition)
                 }
             })
         }
     }
-    
+
     var isHighlighted = false
-    
+
     var reallyHighlighted: Bool {
         var reallyHighlighted = self.isHighlighted || self.isRevealOptionsActive
         if let (item, _, _, _) = self.layoutParams, item.highlighted {
@@ -1873,38 +1924,38 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
         }
         return reallyHighlighted
     }
-    
+
     func updateIsHighlighted(transition: ContainedViewLayoutTransition) {
         self.updateRevealOptionsHighlightedBackgroundNode(self.highlightedBackgroundNode, isHighlighted: self.reallyHighlighted, transition: transition, aboveNodes: [self.bottomStripeNode, self.topStripeNode, self.backgroundNode])
     }
-    
+
     override public func setHighlighted(_ highlighted: Bool, at point: CGPoint, animated: Bool) {
         super.setHighlighted(highlighted, at: point, animated: animated)
-        
+
         if let avatarButton = self.avatarButton, avatarButton.bounds.contains(self.view.convert(point, to: avatarButton)) {
             self.isHighlighted = false
         } else {
             self.isHighlighted = highlighted
-            
+
             self.updateIsHighlighted(transition: (animated && !highlighted) ? .animated(duration: 0.3, curve: .easeInOut) : .immediate)
         }
     }
-    
+
     override public func animateInsertion(_ currentTimestamp: Double, duration: Double, options: ListViewItemAnimationOptions) {
         self.layer.animateAlpha(from: 0.0, to: 1.0, duration: 0.4)
     }
-    
+
     override public func animateRemoved(_ currentTimestamp: Double, duration: Double) {
         self.layer.animateAlpha(from: 1.0, to: 0.0, duration: 0.15, removeOnCompletion: false)
     }
-    
+
     override public func updateRevealOffset(offset: CGFloat, transition: ContainedViewLayoutTransition) {
         super.updateRevealOffset(offset: offset, transition: transition)
-        
+
         guard let item = self.layoutParams?.0, let params = self.layoutParams?.1 else {
             return
         }
-        
+
         let leftInset: CGFloat
         switch item.height {
         case .generic:
@@ -1912,7 +1963,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
         case .peerList:
             leftInset = 65.0 + params.leftInset
         }
-        
+
         let editingOffset: CGFloat
         if let editableControlNode = self.editableControlNode {
             editingOffset = editableControlNode.bounds.size.width
@@ -1922,22 +1973,22 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
         } else {
             editingOffset = 0.0
         }
-        
+
         var titleLeftOffset: CGFloat = 0.0
         if let verifiedIconView = self.verifiedIconView {
             transition.updateFrame(view: verifiedIconView, frame: CGRect(origin: CGPoint(x: leftInset + revealOffset + editingOffset, y: verifiedIconView.frame.minY), size: verifiedIconView.bounds.size))
             titleLeftOffset += verifiedIconView.bounds.size.width + 4.0
         }
-        
+
         transition.updateFrame(node: self.titleNode, frame: CGRect(origin: CGPoint(x: leftInset + revealOffset + editingOffset + titleLeftOffset, y: self.titleNode.frame.minY), size: self.titleNode.bounds.size))
         transition.updateFrame(node: self.statusNode, frame: CGRect(origin: CGPoint(x: leftInset + revealOffset + editingOffset, y: self.statusNode.frame.minY), size: self.statusNode.bounds.size))
-        
+
         if let credibilityIconView = self.credibilityIconView {
             transition.updateFrame(view: credibilityIconView, frame: CGRect(origin: CGPoint(x: self.titleNode.frame.maxX + 4.0, y: credibilityIconView.frame.minY), size: credibilityIconView.bounds.size))
         }
-        
+
         var rightLabelInset: CGFloat = 15.0 + params.rightInset
-        
+
         if let labelArrowNode = self.labelArrowNode {
             if let image = labelArrowNode.image {
                 let labelArrowNodeFrame = CGRect(origin: CGPoint(x: revealOffset + params.width - rightLabelInset - image.size.width + 8.0, y: labelArrowNode.frame.minY), size: image.size)
@@ -1945,35 +1996,35 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
                 rightLabelInset += 19.0
             }
         }
-        
+
         let badgeDiameter: CGFloat = 20.0
         let labelSize = self.labelNode.textNode.frame.size
-        
+
         let badgeWidth = max(badgeDiameter, labelSize.width + 12.0)
         var labelFrame = CGRect(origin: CGPoint(x: offset + params.width - self.labelNode.textNode.bounds.size.width - rightLabelInset, y: self.labelNode.textNode.frame.minY), size: self.labelNode.textNode.bounds.size)
         if self.labelBadgeNode.image != nil {
             labelFrame.origin.x -= 6.0
         }
-        
+
         transition.updateFrame(node: self.labelNode.textNode, frame: labelFrame)
-        
+
         transition.updateFrame(node: self.labelBadgeNode, frame: CGRect(origin: CGPoint(x: floorToScreenPixels(labelFrame.midX - badgeWidth * 0.5), y: floorToScreenPixels(labelFrame.midY - badgeDiameter * 0.5)), size: CGSize(width: badgeWidth, height: badgeDiameter)))
-        
+
         let avatarFrame = CGRect(origin: CGPoint(x: revealOffset + editingOffset + params.leftInset + 15.0, y: self.avatarNode.frame.minY), size: self.avatarNode.bounds.size)
         transition.updateFrame(node: self.avatarNode, frame: avatarFrame)
         if let avatarButton = self.avatarButton {
             avatarButton.frame = avatarFrame
         }
-        
+
         if let customAvatarIconView = self.customAvatarIconView {
             transition.updateFrame(view: customAvatarIconView, frame: avatarFrame)
         }
-        
+
         if let avatarIconComponentView = self.avatarIconView?.view {
             let avatarFrame = self.avatarNode.frame
             let threadIconSize = floor(avatarFrame.width * 0.9)
             let threadIconFrame = CGRect(origin: CGPoint(x: avatarFrame.minX + floor((avatarFrame.width - threadIconSize) / 2.0), y: avatarFrame.minY + floor((avatarFrame.height - threadIconSize) / 2.0)), size: CGSize(width: threadIconSize, height: threadIconSize))
-            
+
             transition.updateFrame(view: avatarIconComponentView, frame: threadIconFrame)
         }
     }
@@ -1983,23 +2034,23 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
 
         self.updateIsHighlighted(transition: transition)
     }
-    
+
     override public func revealOptionsInteractivelyOpened() {
         if let (item, _, _, _) = self.layoutParams {
             item.setPeerIdWithRevealedOptions(item.peer.id, nil)
         }
     }
-    
+
     override public func revealOptionsInteractivelyClosed() {
         if let (item, _, _, _) = self.layoutParams {
             item.setPeerIdWithRevealedOptions(nil, item.peer.id)
         }
     }
-    
+
     override public func revealOptionSelected(_ option: ItemListRevealOption, animated: Bool) {
         self.setRevealOptionsOpened(false, animated: true)
         self.revealOptionsInteractivelyClosed()
-        
+
         if let (item, _, _, _) = self.layoutParams {
             if let revealOptions = item.revealOptions {
                 if option.key >= 0 && option.key < Int32(revealOptions.options.count) {
@@ -2010,13 +2061,13 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             }
         }
     }
-    
+
     private func toggleUpdated(_ value: Bool) {
         if let (item, _, _, _) = self.layoutParams {
             item.toggleUpdated?(value)
         }
     }
-    
+
     override public func headers() -> [ListViewItemHeader]? {
         if let item = self.layoutParams?.0 {
             return item.header.flatMap { [$0] }
@@ -2024,7 +2075,7 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             return nil
         }
     }
-    
+
     override public func updateAbsoluteRect(_ rect: CGRect, within containerSize: CGSize) {
         var rect = rect
         rect.origin.y += self.insets.top
@@ -2033,14 +2084,14 @@ public class ItemListPeerItemNode: ItemListRevealOptionsItemNode, ItemListItemNo
             shimmerNode.updateAbsoluteRect(rect, within: containerSize)
         }
     }
-    
+
     override public func isReorderable(at point: CGPoint) -> Bool {
         if let reorderControlNode = self.reorderControlNode, reorderControlNode.frame.contains(point), !self.isDisplayingRevealedOptions {
             return true
         }
         return false
     }
-    
+
     @objc private func avatarButtonPressed() {
         guard let item = self.layoutParams?.0 else {
             return
@@ -2061,9 +2112,9 @@ public final class ItemListPeerItemHeader: ListViewItemHeader {
     public let strings: PresentationStrings
     public let actionTitle: String?
     public let action: (() -> Void)?
-    
+
     public let height: CGFloat = 28.0
-    
+
     public init(theme: PresentationTheme, strings: PresentationStrings, context: AccountContext, text: NSAttributedString, additionalText: String, actionTitle: String? = nil, id: Int64, action: (() -> Void)? = nil) {
         self.context = context
         self.text = text
@@ -2082,11 +2133,11 @@ public final class ItemListPeerItemHeader: ListViewItemHeader {
             return false
         }
     }
-    
+
     public func node(synchronousLoad: Bool) -> ListViewItemHeaderNode {
         return ItemListPeerItemHeaderNode(theme: self.theme, strings: self.strings, context: self.context, text: self.text, additionalText: self.additionalText, actionTitle: self.actionTitle, action: self.action)
     }
-    
+
     public func updateNode(_ node: ListViewItemHeaderNode, previous: ListViewItemHeader?, next: ListViewItemHeader?) {
         (node as? ItemListPeerItemHeaderNode)?.update(text: self.text, additionalText: self.additionalText, actionTitle: self.actionTitle, action: self.action)
     }
@@ -2098,9 +2149,9 @@ public final class ItemListPeerItemHeaderNode: ListViewItemHeaderNode, ItemListH
     private let context: AccountContext
     private var actionTitle: String?
     private var action: (() -> Void)?
-    
+
     private var validLayout: (size: CGSize, leftInset: CGFloat, rightInset: CGFloat)?
-    
+
     private let backgroundNode: ASDisplayNode
     private let snappedBackgroundNode: ASDisplayNode
     private let separatorNode: ASDisplayNode
@@ -2108,29 +2159,29 @@ public final class ItemListPeerItemHeaderNode: ListViewItemHeaderNode, ItemListH
     private let additionalTextNode: ImmediateTextNode
     private let actionTextNode: ImmediateTextNode
     private let actionButton: HighlightableButtonNode
-    
+
     private var stickDistanceFactor: CGFloat?
-    
+
     public init(theme: PresentationTheme, strings: PresentationStrings, context: AccountContext, text: NSAttributedString, additionalText: String, actionTitle: String?, action: (() -> Void)?) {
         self.context = context
         self.theme = theme
         self.strings = strings
         self.actionTitle = actionTitle
         self.action = action
-        
+
         self.backgroundNode = ASDisplayNode()
         self.backgroundNode.backgroundColor = theme.list.blocksBackgroundColor
-        
+
         self.snappedBackgroundNode = ASDisplayNode()
         self.snappedBackgroundNode.backgroundColor = theme.rootController.navigationBar.opaqueBackgroundColor
         self.snappedBackgroundNode.alpha = 0.0
-        
+
         self.separatorNode = ASDisplayNode()
         self.separatorNode.backgroundColor = theme.list.itemBlocksSeparatorColor
         self.separatorNode.alpha = 0.0
-        
+
         let titleFont = Font.regular(13.0)
-        
+
         self.textNode = ImmediateTextNodeWithEntities()
         self.textNode.displaysAsynchronously = false
         self.textNode.maximumNumberOfLines = 1
@@ -2143,22 +2194,22 @@ public final class ItemListPeerItemHeaderNode: ListViewItemHeaderNode, ItemListH
             attemptSynchronous: true
         )
         self.textNode.visibility = true
-        
+
         self.additionalTextNode = ImmediateTextNode()
         self.additionalTextNode.displaysAsynchronously = false
         self.additionalTextNode.maximumNumberOfLines = 1
         self.additionalTextNode.attributedText = NSAttributedString(string: additionalText, font: titleFont, textColor: theme.list.sectionHeaderTextColor)
-        
+
         self.actionTextNode = ImmediateTextNode()
         self.actionTextNode.displaysAsynchronously = false
         self.actionTextNode.maximumNumberOfLines = 1
         self.actionTextNode.attributedText = NSAttributedString(string: actionTitle ?? "", font: titleFont, textColor: action == nil ? theme.list.sectionHeaderTextColor : theme.list.itemAccentColor)
-        
+
         self.actionButton = HighlightableButtonNode()
         self.actionButton.isUserInteractionEnabled = self.action != nil
-        
+
         super.init()
-        
+
         self.addSubnode(self.backgroundNode)
         self.addSubnode(self.snappedBackgroundNode)
         self.addSubnode(self.separatorNode)
@@ -2166,7 +2217,7 @@ public final class ItemListPeerItemHeaderNode: ListViewItemHeaderNode, ItemListH
         self.addSubnode(self.additionalTextNode)
         self.addSubnode(self.actionTextNode)
         self.addSubnode(self.actionButton)
-        
+
         self.actionButton.addTarget(self, action: #selector(self.actionButtonPressed), forControlEvents: .touchUpInside)
         self.actionButton.highligthedChanged = { [weak self] highlighted in
             if let strongSelf = self {
@@ -2180,25 +2231,25 @@ public final class ItemListPeerItemHeaderNode: ListViewItemHeaderNode, ItemListH
             }
         }
     }
-    
+
     @objc private func actionButtonPressed() {
         self.action?()
     }
-    
+
     public func updateTheme(theme: PresentationTheme) {
         self.theme = theme
-        
+
         self.backgroundNode.backgroundColor = theme.list.blocksBackgroundColor
         self.snappedBackgroundNode.backgroundColor = theme.rootController.navigationBar.opaqueBackgroundColor
         self.separatorNode.backgroundColor = theme.list.itemBlocksSeparatorColor
-        
+
         let titleFont = Font.regular(13.0)
-        
+
         self.textNode.attributedText = NSAttributedString(string: self.textNode.attributedText?.string ?? "", font: titleFont, textColor: theme.list.sectionHeaderTextColor)
         self.additionalTextNode.attributedText = NSAttributedString(string: self.additionalTextNode.attributedText?.string ?? "", font: titleFont, textColor: theme.list.sectionHeaderTextColor)
         self.actionTextNode.attributedText = NSAttributedString(string: self.actionTextNode.attributedText?.string ?? "", font: titleFont, textColor: theme.list.sectionHeaderTextColor)
     }
-    
+
     public func update(text: NSAttributedString, additionalText: String, actionTitle: String?, action: (() -> Void)?) {
         self.actionTitle = actionTitle
         self.action = action
@@ -2211,31 +2262,31 @@ public final class ItemListPeerItemHeaderNode: ListViewItemHeaderNode, ItemListH
             self.updateLayout(size: size, leftInset: leftInset, rightInset: rightInset, transition: .immediate)
         }
     }
-    
+
     override public func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, transition: ContainedViewLayoutTransition) {
         self.validLayout = (size, leftInset, rightInset)
         self.backgroundNode.frame = CGRect(origin: CGPoint(), size: size)
         self.snappedBackgroundNode.frame = CGRect(origin: CGPoint(), size: size)
         self.separatorNode.frame = CGRect(origin: CGPoint(x: 0.0, y: size.height - UIScreenPixel), size: CGSize(width: size.width, height: UIScreenPixel))
-        
+
         let sideInset: CGFloat = 15.0 + leftInset
-        
+
         let actionTextSize = self.actionTextNode.updateLayout(CGSize(width: size.width - sideInset * 2.0, height: size.height))
         let additionalTextSize = self.additionalTextNode.updateLayout(CGSize(width: size.width - sideInset * 2.0 - actionTextSize.width - 8.0, height: size.height))
         let textSize = self.textNode.updateLayout(CGSize(width: max(1.0, size.width - sideInset * 2.0 - actionTextSize.width - 8.0 - additionalTextSize.width), height: size.height))
-        
+
         let textFrame = CGRect(origin: CGPoint(x: sideInset, y: 7.0), size: textSize)
         self.textNode.frame = textFrame
         self.additionalTextNode.frame = CGRect(origin: CGPoint(x: textFrame.maxX, y: 7.0), size: additionalTextSize)
         self.actionTextNode.frame = CGRect(origin: CGPoint(x: size.width - sideInset - actionTextSize.width, y: 7.0), size: actionTextSize)
         self.actionButton.frame = CGRect(origin: CGPoint(x: size.width - sideInset - actionTextSize.width, y: 0.0), size: CGSize(width: actionTextSize.width, height: size.height))
     }
-    
+
     override public func animateRemoved(duration: Double) {
         self.alpha = 0.0
         self.layer.animateAlpha(from: 1.0, to: 0.0, duration: duration, removeOnCompletion: true)
     }
-    
+
     override public func updateStickDistanceFactor(_ factor: CGFloat, distance: CGFloat, transition: ContainedViewLayoutTransition) {
         if self.stickDistanceFactor == factor {
             return

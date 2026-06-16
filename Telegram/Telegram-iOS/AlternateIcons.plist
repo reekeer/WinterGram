@@ -66,6 +66,26 @@
         <key>UIPrerenderedIcon</key>
         <true/>
     </dict>
+    <key>WinterGramDark</key>
+    <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+            <string>WinterGramDark</string>
+            <string>WinterGramDarkNotificationIcon</string>
+        </array>
+        <key>UIPrerenderedIcon</key>
+        <true/>
+    </dict>
+    <key>WinterGramLight</key>
+    <dict>
+        <key>CFBundleIconFiles</key>
+        <array>
+            <string>WinterGramLight</string>
+            <string>WinterGramLightNotificationIcon</string>
+        </array>
+        <key>UIPrerenderedIcon</key>
+        <true/>
+    </dict>
     <key>New1</key>
     <dict>
         <key>CFBundleIconFiles</key>

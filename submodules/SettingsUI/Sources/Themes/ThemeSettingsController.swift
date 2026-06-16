@@ -24,6 +24,89 @@ import WallpaperGridScreen
 import PeerNameColorItem
 import DeviceModel
 
+private func avatarRadiusLabel(_ value: Int32) -> String {
+    switch value {
+    case 50: return "Round"
+    case 30: return "Squircle"
+    case 15: return "Rounded"
+    case 0: return "Square"
+    default: return "\(value)"
+    }
+}
+
+private func winterGramAssetDisplayTitle(_ rawName: String, prefixes: [String]) -> String? {
+    var name = rawName.components(separatedBy: "/").last ?? rawName
+    if let dotIndex = name.lastIndex(of: ".") {
+        name = String(name[..<dotIndex])
+    }
+
+    let lowercasedName = name.lowercased()
+    for prefix in prefixes {
+        if lowercasedName.hasPrefix(prefix.lowercased()) {
+            name = String(name.dropFirst(prefix.count))
+            break
+        }
+    }
+
+    name = name.replacingOccurrences(of: "([a-z0-9])([A-Z])", with: "$1 $2", options: .regularExpression)
+    name = name.replacingOccurrences(of: "[-_]+", with: " ", options: .regularExpression)
+    let words = name.split(separator: " ").map { word -> String in
+        let lowercased = word.lowercased()
+        if lowercased == "wintergram" {
+            return "WinterGram"
+        }
+        if lowercased == "ios" {
+            return "iOS"
+        }
+        return lowercased.prefix(1).uppercased() + String(lowercased.dropFirst())
+    }
+
+    return words.isEmpty ? nil : words.joined(separator: " ")
+}
+
+private func winterGramBannerTitle(_ name: String) -> String {
+    if name == "WntGramBanner" {
+        return "WinterGram"
+    }
+    return winterGramAssetDisplayTitle(name, prefixes: [
+        "banner-",
+        "wntgram",
+        "WinterGram"
+    ]) ?? name
+}
+
+private func winterGramAvailableBannerNames(selectedBanner: String) -> [String] {
+    var names: [String] = ["WntGramBanner"]
+    if !selectedBanner.isEmpty && !names.contains(selectedBanner) {
+        names.append(selectedBanner)
+    }
+    return names.filter { UIImage(bundleImageName: $0) != nil }
+}
+
+private func winterGramTopBannerPreviewImage(theme: PresentationTheme, bannerName: String) -> UIImage {
+    let size = CGSize(width: 144.0, height: 36.0)
+    let renderer = UIGraphicsImageRenderer(size: size)
+    return renderer.image { _ in
+        let bounds = CGRect(origin: .zero, size: size)
+        let plateRect = bounds.insetBy(dx: 1.0, dy: 1.0)
+        let platePath = UIBezierPath(roundedRect: plateRect, cornerRadius: 12.0)
+        theme.list.itemBlocksBackgroundColor.setFill()
+        platePath.fill()
+        theme.list.itemBlocksSeparatorColor.withAlphaComponent(0.45).setStroke()
+        platePath.lineWidth = UIScreenPixel
+        platePath.stroke()
+
+        UIColor.black.setFill()
+        UIBezierPath(roundedRect: CGRect(x: floor((size.width - 44.0) / 2.0), y: 6.0, width: 44.0, height: 12.0), cornerRadius: 6.0).fill()
+
+        if let banner = UIImage(bundleImageName: bannerName) ?? UIImage(bundleImageName: "WntGramBanner") {
+            let bannerHeight: CGFloat = 13.0
+            let bannerWidth = min(size.width - 20.0, floor(bannerHeight * banner.size.width / max(1.0, banner.size.height)))
+            banner.draw(in: CGRect(x: floor((size.width - bannerWidth) / 2.0), y: 20.0, width: bannerWidth, height: bannerHeight))
+        }
+    }
+}
+
 private final class ThemeSettingsControllerArguments {
     let context: AccountContext
     let selectTheme: (PresentationThemeReference) -> Void
@@ -44,7 +127,11 @@ private final class ThemeSettingsControllerArguments {
     let editTheme: (PresentationCloudTheme) -> Void
     let themeContextAction: (Bool, PresentationThemeReference, ASDisplayNode, ContextGesture?) -> Void
     let colorContextAction: (Bool, PresentationThemeReference, ThemeSettingsColorOption?, ASDisplayNode, ContextGesture?) -> Void
-    
+    let updateWinterGramSettingsPreview: (@escaping (WinterGramSettings) -> WinterGramSettings) -> Void
+    let updateWinterGramSettings: (@escaping (WinterGramSettings) -> WinterGramSettings) -> Void
+    let toggleIconPackExpanded: () -> Void
+    let toggleBannerExpanded: () -> Void
+
     init(
         context: AccountContext,
         selectTheme: @escaping (PresentationThemeReference) -> Void,
@@ -64,7 +151,11 @@ private final class ThemeSettingsControllerArguments {
         selectAppIcon: @escaping (PresentationAppIcon) -> Void,
         editTheme: @escaping (PresentationCloudTheme) -> Void,
         themeContextAction: @escaping (Bool, PresentationThemeReference, ASDisplayNode, ContextGesture?) -> Void,
-        colorContextAction: @escaping (Bool, PresentationThemeReference, ThemeSettingsColorOption?, ASDisplayNode, ContextGesture?) -> Void
+        colorContextAction: @escaping (Bool, PresentationThemeReference, ThemeSettingsColorOption?, ASDisplayNode, ContextGesture?) -> Void,
+        updateWinterGramSettingsPreview: @escaping (@escaping (WinterGramSettings) -> WinterGramSettings) -> Void,
+        updateWinterGramSettings: @escaping (@escaping (WinterGramSettings) -> WinterGramSettings) -> Void,
+        toggleIconPackExpanded: @escaping () -> Void,
+        toggleBannerExpanded: @escaping () -> Void
     ) {
         self.context = context
         self.selectTheme = selectTheme
@@ -85,16 +176,22 @@ private final class ThemeSettingsControllerArguments {
         self.editTheme = editTheme
         self.themeContextAction = themeContextAction
         self.colorContextAction = colorContextAction
+        self.updateWinterGramSettingsPreview = updateWinterGramSettingsPreview
+        self.updateWinterGramSettings = updateWinterGramSettings
+        self.toggleIconPackExpanded = toggleIconPackExpanded
+        self.toggleBannerExpanded = toggleBannerExpanded
     }
 }
 
 private enum ThemeSettingsControllerSection: Int32 {
     case chatPreview
+    case rounding
     case nightMode
     case message
     case icon
     case powerSaving
     case other
+    case winterGram
 }
 
 public enum ThemeSettingsEntryTag: ItemListItemTag {
@@ -110,7 +207,7 @@ public enum ThemeSettingsEntryTag: ItemListItemTag {
     case tapForNextMedia
     case nightMode
     case edit
-    
+
     public func isEqual(to other: ItemListItemTag) -> Bool {
         if let other = other as? ThemeSettingsEntryTag, self == other {
             return true
@@ -122,16 +219,20 @@ public enum ThemeSettingsEntryTag: ItemListItemTag {
 
 private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
     case themeListHeader(PresentationTheme, String)
-    case chatPreview(PresentationTheme, TelegramWallpaper, PresentationFontSize, PresentationChatBubbleCorners, PresentationStrings, PresentationDateTimeFormat, PresentationPersonNameOrder, [ChatPreviewMessageItem])
+    case chatPreview(PresentationTheme, TelegramWallpaper, PresentationFontSize, PresentationChatBubbleCorners, PresentationStrings, PresentationDateTimeFormat, PresentationPersonNameOrder, [ChatPreviewMessageItem], Int32, EnginePeer?, Bool)
     case themes(PresentationTheme, PresentationStrings, [PresentationThemeReference], PresentationThemeReference, Bool, [String: [StickerPackItem]], [Int64: PresentationThemeAccentColor], [Int64: TelegramWallpaper])
     case chatTheme(PresentationTheme, String)
     case wallpaper(PresentationTheme, String)
     case nameColor(PresentationTheme, String, String, PeerNameColors.Colors?, PeerNameColors.Colors?)
+    case winterGramRoundingHeader(PresentationTheme, String)
     case autoNight(PresentationTheme, String, Bool, Bool)
     case autoNightTheme(PresentationTheme, String, String)
     case textSize(PresentationTheme, String, String)
     case bubbleSettings(PresentationTheme, String, String)
     case iconHeader(PresentationTheme, String)
+    case winterGramIconPack(PresentationTheme, WinterGramIconPack, Bool)
+    case winterGramBannerSelection(PresentationTheme, String, Bool)
+    case winterGramBannerPreview(PresentationTheme, String)
     case iconItem(PresentationTheme, PresentationStrings, [PresentationAppIcon], Bool, String?)
     case powerSaving
     case stickersAndEmoji
@@ -139,69 +240,118 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
     case sendWithCmdEnter(PresentationTheme, String, Bool)
     case showNextMediaOnTap(PresentationTheme, String, Bool)
     case showNextMediaOnTapInfo(PresentationTheme, String)
-    
+    case winterGramShowSeconds(PresentationTheme, String, Bool)
+    case winterGramHeader(PresentationTheme, String)
+    case winterGramMaterialDesign(PresentationTheme, String, Bool)
+    case winterGramSingleCornerRadius(PresentationTheme, String, Bool)
+    case winterGramAvatarRadius(PresentationTheme, String, Int32, Signal<UIImage?, NoError>?)
+    case winterGramBubbleRadius(PresentationTheme, String, Int32)
+    case winterGramLiquidGlass(PresentationTheme, String, Bool)
+    case winterGramLiquidGlassVibrancy(PresentationTheme, String, Bool)
+    case winterGramLiquidGlassChatList(PresentationTheme, String, Bool)
+    case winterGramLiquidGlassNavBars(PresentationTheme, String, Bool)
+    case winterGramLiquidGlassTabBar(PresentationTheme, String, Bool)
+    case winterGramLiquidGlassBubbles(PresentationTheme, String, Bool)
+
     var section: ItemListSectionId {
         switch self {
         case .themeListHeader, .chatPreview, .themes, .chatTheme, .wallpaper, .nameColor:
                 return ThemeSettingsControllerSection.chatPreview.rawValue
+            case .winterGramRoundingHeader, .winterGramShowSeconds, .winterGramAvatarRadius, .winterGramBubbleRadius:
+                return ThemeSettingsControllerSection.rounding.rawValue
             case .autoNight, .autoNightTheme:
                 return ThemeSettingsControllerSection.nightMode.rawValue
             case .textSize, .bubbleSettings:
                 return ThemeSettingsControllerSection.message.rawValue
-            case .iconHeader, .iconItem:
+            case .iconHeader, .winterGramIconPack, .winterGramBannerSelection, .winterGramBannerPreview, .iconItem:
                 return ThemeSettingsControllerSection.icon.rawValue
             case .powerSaving, .stickersAndEmoji:
                 return ThemeSettingsControllerSection.message.rawValue
             case .otherHeader, .sendWithCmdEnter, .showNextMediaOnTap, .showNextMediaOnTapInfo:
                 return ThemeSettingsControllerSection.other.rawValue
+            case .winterGramHeader, .winterGramMaterialDesign, .winterGramSingleCornerRadius, .winterGramLiquidGlass, .winterGramLiquidGlassVibrancy, .winterGramLiquidGlassChatList, .winterGramLiquidGlassNavBars, .winterGramLiquidGlassTabBar, .winterGramLiquidGlassBubbles:
+                return ThemeSettingsControllerSection.winterGram.rawValue
         }
     }
-    
+
     var stableId: Int32 {
         switch self {
         case .themeListHeader:
             return 0
         case .chatPreview:
-            return 1
-        case .themes:
-            return 2
-        case .chatTheme:
-            return 3
-        case .wallpaper:
-            return 4
-        case .nameColor:
-            return 5
-        case .autoNight:
-            return 6
-        case .autoNightTheme:
-            return 7
-        case .textSize:
-            return 8
-        case .bubbleSettings:
-            return 9
-        case .powerSaving:
             return 10
+        case .themes:
+            return 40
+        case .chatTheme:
+            return 50
+        case .wallpaper:
+            return 60
+        case .nameColor:
+            return 70
+        // Rounding sliders sit right after Personal Colors, before Night Mode.
+        case .winterGramRoundingHeader:
+            return 72
+        case .winterGramShowSeconds:
+            return 73
+        case .winterGramAvatarRadius:
+            return 74
+        case .winterGramBubbleRadius:
+            return 75
+        case .autoNight:
+            return 80
+        case .autoNightTheme:
+            return 90
+        case .textSize:
+            return 100
+        case .bubbleSettings:
+            return 110
+        case .powerSaving:
+            return 120
         case .stickersAndEmoji:
-            return 11
+            return 130
         case .iconHeader:
-            return 12
+            return 140
+        case .winterGramBannerSelection:
+            return 145
+        case .winterGramBannerPreview:
+            return 146
+        case .winterGramIconPack:
+            return 147
         case .iconItem:
-            return 13
+            return 150
         case .otherHeader:
-            return 14
+            return 160
         case .sendWithCmdEnter:
-            return 15
+            return 170
         case .showNextMediaOnTap:
-            return 16
+            return 180
         case .showNextMediaOnTapInfo:
-            return 17
+            return 190
+        case .winterGramHeader:
+            return 200
+        case .winterGramMaterialDesign:
+            return 210
+        case .winterGramSingleCornerRadius:
+            return 220
+        case .winterGramLiquidGlass:
+            return 230
+        case .winterGramLiquidGlassVibrancy:
+            return 240
+        case .winterGramLiquidGlassChatList:
+            return 250
+        case .winterGramLiquidGlassNavBars:
+            return 260
+        case .winterGramLiquidGlassTabBar:
+            return 270
+        case .winterGramLiquidGlassBubbles:
+            return 280
         }
     }
-    
+
     static func ==(lhs: ThemeSettingsControllerEntry, rhs: ThemeSettingsControllerEntry) -> Bool {
         switch lhs {
-            case let .chatPreview(lhsTheme, lhsWallpaper, lhsFontSize, lhsChatBubbleCorners, lhsStrings, lhsTimeFormat, lhsNameOrder, lhsItems):
-                if case let .chatPreview(rhsTheme, rhsWallpaper, rhsFontSize, rhsChatBubbleCorners, rhsStrings, rhsTimeFormat, rhsNameOrder, rhsItems) = rhs, lhsTheme === rhsTheme, lhsWallpaper == rhsWallpaper, lhsFontSize == rhsFontSize, lhsChatBubbleCorners == rhsChatBubbleCorners, lhsStrings === rhsStrings, lhsTimeFormat == rhsTimeFormat, lhsNameOrder == rhsNameOrder, lhsItems == rhsItems {
+            case let .chatPreview(lhsTheme, lhsWallpaper, lhsFontSize, lhsChatBubbleCorners, lhsStrings, lhsTimeFormat, lhsNameOrder, lhsItems, lhsAvatarCornerRadius, lhsAvatarPeer, lhsShowSeconds):
+                if case let .chatPreview(rhsTheme, rhsWallpaper, rhsFontSize, rhsChatBubbleCorners, rhsStrings, rhsTimeFormat, rhsNameOrder, rhsItems, rhsAvatarCornerRadius, rhsAvatarPeer, rhsShowSeconds) = rhs, lhsTheme === rhsTheme, lhsWallpaper == rhsWallpaper, lhsFontSize == rhsFontSize, lhsChatBubbleCorners == rhsChatBubbleCorners, lhsStrings === rhsStrings, lhsTimeFormat == rhsTimeFormat, lhsNameOrder == rhsNameOrder, lhsItems == rhsItems, lhsAvatarCornerRadius == rhsAvatarCornerRadius, lhsAvatarPeer == rhsAvatarPeer, lhsShowSeconds == rhsShowSeconds {
                     return true
                 } else {
                     return false
@@ -226,6 +376,12 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 }
             case let .nameColor(lhsTheme, lhsText, lhsName, lhsNameColor, lhsProfileColor):
                 if case let .nameColor(rhsTheme, rhsText, rhsName, rhsNameColor, rhsProfileColor) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsName == rhsName, lhsNameColor == rhsNameColor, lhsProfileColor == rhsProfileColor {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramRoundingHeader(lhsTheme, lhsText):
+                if case let .winterGramRoundingHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
                     return true
                 } else {
                     return false
@@ -262,6 +418,24 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 }
             case let .iconHeader(lhsTheme, lhsText):
                 if case let .iconHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramIconPack(lhsTheme, lhsValue, lhsExpanded):
+                if case let .winterGramIconPack(rhsTheme, rhsValue, rhsExpanded) = rhs, lhsTheme === rhsTheme, lhsValue == rhsValue, lhsExpanded == rhsExpanded {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramBannerSelection(lhsTheme, lhsValue, lhsExpanded):
+                if case let .winterGramBannerSelection(rhsTheme, rhsValue, rhsExpanded) = rhs, lhsTheme === rhsTheme, lhsValue == rhsValue, lhsExpanded == rhsExpanded {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramBannerPreview(lhsTheme, lhsValue):
+                if case let .winterGramBannerPreview(rhsTheme, rhsValue) = rhs, lhsTheme === rhsTheme, lhsValue == rhsValue {
                     return true
                 } else {
                     return false
@@ -308,18 +482,90 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 } else {
                     return false
                 }
+            case let .winterGramShowSeconds(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramShowSeconds(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramHeader(lhsTheme, lhsText):
+                if case let .winterGramHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramMaterialDesign(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramMaterialDesign(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramSingleCornerRadius(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramSingleCornerRadius(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramAvatarRadius(lhsTheme, lhsText, lhsValue, _):
+                if case let .winterGramAvatarRadius(rhsTheme, rhsText, rhsValue, _) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramBubbleRadius(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramBubbleRadius(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramLiquidGlass(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramLiquidGlass(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramLiquidGlassVibrancy(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramLiquidGlassVibrancy(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramLiquidGlassChatList(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramLiquidGlassChatList(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramLiquidGlassNavBars(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramLiquidGlassNavBars(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramLiquidGlassTabBar(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramLiquidGlassTabBar(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .winterGramLiquidGlassBubbles(lhsTheme, lhsText, lhsValue):
+                if case let .winterGramLiquidGlassBubbles(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
         }
     }
-    
+
     static func <(lhs: ThemeSettingsControllerEntry, rhs: ThemeSettingsControllerEntry) -> Bool {
         return lhs.stableId < rhs.stableId
     }
-    
+
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! ThemeSettingsControllerArguments
         switch self {
-            case let .chatPreview(theme, wallpaper, fontSize, chatBubbleCorners, strings, dateTimeFormat, nameDisplayOrder, items):
-                return ThemeSettingsChatPreviewItem(context: arguments.context, systemStyle: .glass, theme: theme, componentTheme: theme, strings: strings, sectionId: self.section, fontSize: fontSize, chatBubbleCorners: chatBubbleCorners, wallpaper: wallpaper, dateTimeFormat: dateTimeFormat, nameDisplayOrder: nameDisplayOrder, messageItems: items)
+            case let .chatPreview(theme, wallpaper, fontSize, chatBubbleCorners, strings, dateTimeFormat, nameDisplayOrder, items, avatarCornerRadius, avatarPeer, _):
+                return ThemeSettingsChatPreviewItem(context: arguments.context, systemStyle: .glass, theme: theme, componentTheme: theme, strings: strings, sectionId: self.section, fontSize: fontSize, chatBubbleCorners: chatBubbleCorners, wallpaper: wallpaper, dateTimeFormat: dateTimeFormat, nameDisplayOrder: nameDisplayOrder, messageItems: items, avatarCornerRadius: avatarCornerRadius, avatarPeer: avatarPeer)
             case let .themes(theme, strings, chatThemes, currentTheme, nightMode, animatedEmojiStickers, themeSpecificAccentColors, themeSpecificChatWallpapers):
                 return ThemeCarouselThemeItem(context: arguments.context, theme: theme, strings: strings, sectionId: self.section, themes: chatThemes, hasNoTheme: false, animatedEmojiStickers: animatedEmojiStickers, themeSpecificAccentColors: themeSpecificAccentColors, themeSpecificChatWallpapers: themeSpecificChatWallpapers, nightMode: nightMode, currentTheme: currentTheme, updatedTheme: { theme in
                     if let theme {
@@ -344,12 +590,14 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 if let profileColor {
                     colors.append(profileColor)
                 }
-            
+
                 let colorImage = generateSettingsMenuPeerColorsLabelIcon(colors: colors)
-            
+
                 return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: text, label: "", labelStyle: .image(image: colorImage, size: colorImage.size), sectionId: self.section, style: .blocks, action: {
                     arguments.openNameColorSettings()
                 })
+            case let .winterGramRoundingHeader(_, text):
+                return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
             case let .autoNight(_, title, value, enabled):
                 return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: title, value: value, enabled: enabled, sectionId: self.section, style: .blocks, updated: { value in
                     arguments.toggleNightTheme(value)
@@ -370,6 +618,32 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
             case let .iconHeader(_, text):
                 return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
+            case let .winterGramIconPack(_, value, expanded):
+                let options: [ItemListExpandableSelectionItem.Option] = [
+                    ItemListExpandableSelectionItem.Option(id: WinterGramIconPack.wintergram.rawValue, title: wntOption("WinterGram", presentationData.strings), isSelected: value == .wintergram),
+                    ItemListExpandableSelectionItem.Option(id: WinterGramIconPack.telegram.rawValue, title: wntOption("Telegram", presentationData.strings), isSelected: value == .telegram)
+                ]
+                return ItemListExpandableSelectionItem(presentationData: presentationData, systemStyle: .glass, title: presentationData.strings.WinterGram_IconPack, options: options, isExpanded: expanded, sectionId: self.section, style: .blocks, updated: { option in
+                    if let rawValue = option.id.base as? Int32, let pack = WinterGramIconPack(rawValue: rawValue) {
+                        arguments.updateWinterGramSettings { var s = $0; s.iconPack = pack; return s }
+                    }
+                }, toggleExpanded: {
+                    arguments.toggleIconPackExpanded()
+                })
+            case let .winterGramBannerSelection(_, selectedBanner, expanded):
+                let options = winterGramAvailableBannerNames(selectedBanner: selectedBanner).map { bannerName in
+                    ItemListExpandableSelectionItem.Option(id: bannerName, title: winterGramBannerTitle(bannerName), isSelected: selectedBanner == bannerName)
+                }
+                return ItemListExpandableSelectionItem(presentationData: presentationData, systemStyle: .glass, title: presentationData.strings.WinterGram_TopBanner, options: options, isExpanded: expanded, sectionId: self.section, style: .blocks, updated: { option in
+                    if let bannerName = option.id.base as? String {
+                        arguments.updateWinterGramSettings { var s = $0; s.topBannerName = bannerName; s.topBannerStyle = .solid; return s }
+                    }
+                }, toggleExpanded: {
+                    arguments.toggleBannerExpanded()
+                })
+            case let .winterGramBannerPreview(theme, selectedBanner):
+                let previewImage = winterGramTopBannerPreviewImage(theme: theme, bannerName: selectedBanner)
+                return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, icon: nil, title: "Preview", label: "", labelStyle: .image(image: previewImage, size: previewImage.size), sectionId: self.section, style: .blocks, disclosureStyle: .none, action: nil)
             case let .iconItem(theme, strings, icons, isPremium, value):
                 return ThemeSettingsAppIconItem(theme: theme, strings: strings, systemStyle: .glass, sectionId: self.section, icons: icons, isPremium: isPremium, currentIconName: value, updated: { icon in
                     arguments.selectAppIcon(icon)
@@ -394,19 +668,74 @@ private enum ThemeSettingsControllerEntry: ItemListNodeEntry {
                 }, tag: ThemeSettingsEntryTag.tapForNextMedia)
             case let .showNextMediaOnTapInfo(_, text):
                 return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+            case let .winterGramShowSeconds(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettingsPreview { var s = $0; s.showMessageSeconds = value; return s }
+                    arguments.updateWinterGramSettings { var s = $0; s.showMessageSeconds = value; return s }
+                })
+            case let .winterGramHeader(_, text):
+                return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
+            case let .winterGramMaterialDesign(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.materialDesign = value; return s }
+                })
+            case let .winterGramSingleCornerRadius(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.singleCornerRadius = value; return s }
+                })
+            case let .winterGramAvatarRadius(_, title, value, avatarSignal):
+                return WinterGramRadiusItem(presentationData: presentationData, title: title, value: value, minValue: 0, maxValue: 50, previewKind: .avatar, avatarSignal: avatarSignal, displayValue: { wntOption(avatarRadiusLabel($0), presentationData.strings) }, sectionId: self.section, valueChanged: { newValue in
+                    arguments.updateWinterGramSettingsPreview { var s = $0; s.avatarCornerRadius = newValue; return s }
+                }, updated: { newValue in
+                    arguments.updateWinterGramSettings { var s = $0; s.avatarCornerRadius = newValue; return s }
+                })
+            case let .winterGramBubbleRadius(_, title, value):
+                return WinterGramRadiusItem(presentationData: presentationData, title: title, value: value, minValue: 0, maxValue: 20, previewKind: .bubble, displayValue: { "\($0)" }, sectionId: self.section, valueChanged: { newValue in
+                    arguments.updateWinterGramSettingsPreview { var s = $0; s.messageBubbleRadius = newValue; return s }
+                }, updated: { newValue in
+                    arguments.updateWinterGramSettings { var s = $0; s.messageBubbleRadius = newValue; return s }
+                })
+            case let .winterGramLiquidGlass(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.liquidGlass.enabled = value; return s }
+                })
+            case let .winterGramLiquidGlassVibrancy(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.liquidGlass.vibrancy = value; return s }
+                })
+            case let .winterGramLiquidGlassChatList(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.liquidGlass.applyToChatList = value; return s }
+                })
+            case let .winterGramLiquidGlassNavBars(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.liquidGlass.applyToNavigationBars = value; return s }
+                })
+            case let .winterGramLiquidGlassTabBar(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.liquidGlass.applyToTabBar = value; return s }
+                })
+            case let .winterGramLiquidGlassBubbles(_, title, value):
+                return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.updateWinterGramSettings { var s = $0; s.liquidGlass.applyToBubbles = value; return s }
+                })
         }
     }
 }
 
 private func themeSettingsControllerEntries(
+    context: AccountContext,
     presentationData: PresentationData,
     presentationThemeSettings: PresentationThemeSettings,
     chatSettings: ChatSettings,
     mediaSettings: MediaDisplaySettings,
+    winterGramSettings: WinterGramSettings,
     themeReference: PresentationThemeReference,
     availableThemes: [PresentationThemeReference],
     availableAppIcons: [PresentationAppIcon],
     currentAppIconName: String?,
+    iconPackExpanded: Bool,
+    bannerExpanded: Bool,
     isPremium: Bool,
     chatThemes: [PresentationThemeReference],
     animatedEmojiStickers: [String: [StickerPackItem]],
@@ -414,13 +743,14 @@ private func themeSettingsControllerEntries(
     nameColors: PeerNameColors
 ) -> [ThemeSettingsControllerEntry] {
     var entries: [ThemeSettingsControllerEntry] = []
-    
+
     let strings = presentationData.strings
     let title = presentationData.autoNightModeTriggered ? strings.Appearance_ColorThemeNight.uppercased() : strings.Appearance_ColorTheme.uppercased()
     entries.append(.themeListHeader(presentationData.theme, title))
-    
+
     let nameColor: PeerColor
     let profileColor: PeerNameColor?
+    let previewPhoto: [TelegramMediaImageRepresentation]
     var authorName = presentationData.strings.Appearance_PreviewReplyAuthor
     if let accountPeer {
         nameColor = accountPeer.nameColor ?? .preset(.blue)
@@ -428,17 +758,21 @@ private func themeSettingsControllerEntries(
             authorName = accountPeer.displayTitle(strings: strings, displayOrder: presentationData.nameDisplayOrder)
         }
         profileColor = accountPeer.effectiveProfileColor
+        previewPhoto = accountPeer.profileImageRepresentations
     } else {
         nameColor = .preset(.blue)
         profileColor = nil
+        previewPhoto = []
     }
-    
-    entries.append(.chatPreview(presentationData.theme, presentationData.chatWallpaper, presentationData.chatFontSize, presentationData.chatBubbleCorners, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, [ChatPreviewMessageItem(outgoing: false, reply: (authorName, presentationData.strings.Appearance_PreviewReplyText), text: presentationData.strings.Appearance_PreviewIncomingText, nameColor: nameColor, backgroundEmojiId: accountPeer?.backgroundEmojiId), ChatPreviewMessageItem(outgoing: true, reply: nil, text: presentationData.strings.Appearance_PreviewOutgoingText, nameColor: .preset(.blue), backgroundEmojiId: nil)]))
-    
+
+    var previewChatBubbleCorners = presentationData.chatBubbleCorners
+    previewChatBubbleCorners.mainRadius = CGFloat(max(0, min(20, winterGramSettings.messageBubbleRadius)))
+    entries.append(.chatPreview(presentationData.theme, presentationData.chatWallpaper, presentationData.chatFontSize, previewChatBubbleCorners, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, [ChatPreviewMessageItem(outgoing: false, reply: (authorName, presentationData.strings.Appearance_PreviewReplyText), text: presentationData.strings.Appearance_PreviewIncomingText, nameColor: nameColor, photo: previewPhoto, backgroundEmojiId: accountPeer?.backgroundEmojiId), ChatPreviewMessageItem(outgoing: true, reply: nil, text: presentationData.strings.Appearance_PreviewOutgoingText, nameColor: .preset(.blue), backgroundEmojiId: nil)], winterGramSettings.avatarCornerRadius, accountPeer, winterGramSettings.showMessageSeconds))
+
     entries.append(.themes(presentationData.theme, presentationData.strings, chatThemes, themeReference, presentationThemeSettings.automaticThemeSwitchSetting.force || presentationData.autoNightModeTriggered, animatedEmojiStickers, presentationThemeSettings.themeSpecificAccentColors, presentationThemeSettings.themeSpecificChatWallpapers))
     entries.append(.chatTheme(presentationData.theme, strings.Settings_ChatThemes))
     entries.append(.wallpaper(presentationData.theme, strings.Settings_ChatBackground))
-    
+
     let colors: PeerNameColors.Colors
     switch nameColor {
     case let .preset(nameColor):
@@ -448,7 +782,14 @@ private func themeSettingsControllerEntries(
     }
     let profileColors = profileColor.flatMap { nameColors.getProfile($0, dark: presentationData.theme.overallDarkAppearance, subject: .palette) }
     entries.append(.nameColor(presentationData.theme, presentationData.strings.Settings_YourColor, accountPeer?.compactDisplayTitle ?? "", colors, profileColors))
-    
+
+    // Rounding sliders, placed right after Personal Colors. The single theme preview at the top
+    // already reflects both avatar and message rounding, so there is no separate rounding preview.
+    entries.append(.winterGramRoundingHeader(presentationData.theme, "WINTERGRAM"))
+    entries.append(.winterGramShowSeconds(presentationData.theme, strings.WinterGram_ShowMessageSeconds, winterGramSettings.showMessageSeconds))
+    entries.append(.winterGramAvatarRadius(presentationData.theme, strings.WinterGram_AvatarShape, winterGramSettings.avatarCornerRadius, nil))
+    entries.append(.winterGramBubbleRadius(presentationData.theme, strings.WinterGram_BubbleRadius, winterGramSettings.messageBubbleRadius))
+
     entries.append(.autoNight(presentationData.theme, strings.Appearance_NightTheme, presentationThemeSettings.automaticThemeSwitchSetting.force, !presentationData.autoNightModeTriggered || presentationThemeSettings.automaticThemeSwitchSetting.force))
     let autoNightMode: String
     switch presentationThemeSettings.automaticThemeSwitchSetting.trigger {
@@ -466,7 +807,7 @@ private func themeSettingsControllerEntries(
             autoNightMode = strings.AutoNightTheme_Automatic
     }
     entries.append(.autoNightTheme(presentationData.theme, strings.Appearance_AutoNightTheme, autoNightMode))
-    
+
     let textSizeValue: String
     if presentationThemeSettings.useSystemFont {
         textSizeValue = strings.Appearance_TextSize_Automatic
@@ -481,24 +822,38 @@ private func themeSettingsControllerEntries(
     entries.append(.bubbleSettings(presentationData.theme, strings.Appearance_BubbleCornersSetting, ""))
     entries.append(.powerSaving)
     entries.append(.stickersAndEmoji)
-    
+
     if !availableAppIcons.isEmpty {
         entries.append(.iconHeader(presentationData.theme, strings.Appearance_AppIcon.uppercased()))
-        entries.append(.iconItem(presentationData.theme, presentationData.strings, availableAppIcons, isPremium, currentAppIconName))
+        entries.append(.winterGramBannerSelection(presentationData.theme, winterGramSettings.topBannerName, bannerExpanded))
+        entries.append(.winterGramBannerPreview(presentationData.theme, winterGramSettings.topBannerName))
+        entries.append(.winterGramIconPack(presentationData.theme, winterGramSettings.iconPack, iconPackExpanded))
+        let filteredAppIcons = availableAppIcons.filter { icon in
+            let isWinterGramIcon = icon.name.hasPrefix("WinterGram") || icon.name.hasPrefix("icon-app-")
+            switch winterGramSettings.iconPack {
+            case .wintergram:
+                return isWinterGramIcon
+            case .telegram:
+                return !isWinterGramIcon
+            default:
+                return true
+            }
+        }
+        entries.append(.iconItem(presentationData.theme, presentationData.strings, filteredAppIcons.isEmpty ? availableAppIcons : filteredAppIcons, isPremium, currentAppIconName))
     }
-    
+
     entries.append(.otherHeader(presentationData.theme, strings.Appearance_Other.uppercased()))
     if DeviceModel.current.isIpad {
         entries.append(.sendWithCmdEnter(presentationData.theme, strings.Appearance_SendWithCmdEnter, chatSettings.sendWithCmdEnter))
     }
     entries.append(.showNextMediaOnTap(presentationData.theme, strings.Appearance_ShowNextMediaOnTap, mediaSettings.showNextMediaOnTap))
     entries.append(.showNextMediaOnTapInfo(presentationData.theme, strings.Appearance_ShowNextMediaOnTapInfo))
-    
+
     return entries
 }
 
 public protocol ThemeSettingsController {
-    
+
 }
 
 private final class ThemeSettingsControllerImpl: ItemListController, ThemeSettingsController {
@@ -515,13 +870,13 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
     var presentInGlobalOverlayImpl: ((ViewController, Any?) -> Void)?
     var getNavigationControllerImpl: (() -> NavigationController?)?
     var presentCrossfadeControllerImpl: ((Bool) -> Void)?
-    
+
     var selectThemeImpl: ((PresentationThemeReference) -> Void)?
     var selectAccentColorImpl: ((PresentationThemeAccentColor?) -> Void)?
     var openAccentColorPickerImpl: ((PresentationThemeReference, Bool) -> Void)?
-    
+
     let _ = context.engine.themes.wallpapers().start()
-    
+
     let currentAppIcon: PresentationAppIcon?
     var appIcons = context.sharedContext.applicationBindings.getAvailableAlternateIcons()
     if let alternateIconName = context.sharedContext.applicationBindings.getAlternateIconName() {
@@ -529,26 +884,26 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
     } else {
         currentAppIcon = appIcons.filter { $0.isDefault }.first
     }
-    
+
     let premiumConfiguration = PremiumConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
     if premiumConfiguration.isPremiumDisabled || context.account.testingEnvironment {
-        appIcons = appIcons.filter { !$0.isPremium } 
+        appIcons = appIcons.filter { !$0.isPremium }
     }
-    
+
     let availableAppIcons: Signal<[PresentationAppIcon], NoError> = .single(appIcons)
     let currentAppIconName = ValuePromise<String?>()
     currentAppIconName.set(currentAppIcon?.name ?? "Blue")
-    
+
     let cloudThemes = Promise<[TelegramTheme]>()
     let updatedCloudThemes = context.engine.themes.themes(accountManager: context.sharedContext.accountManager)
     cloudThemes.set(updatedCloudThemes)
-    
+
     let removedThemeIndexesPromise = Promise<Set<Int64>>(Set())
     let removedThemeIndexes = Atomic<Set<Int64>>(value: Set())
-    
+
     let archivedPacks = Promise<[ArchivedStickerPackItem]?>()
     archivedPacks.set(.single(nil) |> then(context.engine.stickers.archivedStickerPacks() |> map(Optional.init)))
-    
+
     let animatedEmojiStickers = context.engine.stickers.loadedStickerPack(reference: .animatedEmoji, forceActualized: false)
     |> map { animatedEmoji -> [String: [StickerPackItem]] in
         var animatedEmojiStickers: [String: [StickerPackItem]] = [:]
@@ -568,7 +923,14 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
         }
         return animatedEmojiStickers
     }
-    
+
+    let winterGramPreviewSettingsValue = Atomic<WinterGramSettings?>(value: nil)
+    let winterGramPreviewSettingsPromise = ValuePromise<WinterGramSettings?>(nil, ignoreRepeated: false)
+    let iconPackExpandedValue = Atomic<Bool>(value: true)
+    let iconPackExpandedPromise = ValuePromise<Bool>(true, ignoreRepeated: true)
+    let bannerExpandedValue = Atomic<Bool>(value: false)
+    let bannerExpandedPromise = ValuePromise<Bool>(false, ignoreRepeated: true)
+
     let arguments = ThemeSettingsControllerArguments(context: context, selectTheme: { theme in
         selectThemeImpl?(theme)
     }, openThemeSettings: {
@@ -635,6 +997,11 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                 pushControllerImpl?(controller)
             } else {
                 currentAppIconName.set(icon.name)
+                let _ = updateWinterGramSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
+                    var updated = current
+                    updated.appIcon = icon.name
+                    return updated
+                }).startStandalone()
                 context.sharedContext.applicationBindings.requestSetAlternateIconName(icon.isDefault ? nil : icon.name, { _ in
                 })
             }
@@ -703,7 +1070,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             let strings = presentationData.strings
             let themeController = ThemePreviewController(context: context, previewTheme: theme, source: .settings(reference, wallpaper, true))
             var items: [ContextMenuItem] = []
-            
+
             if case let .cloud(theme) = reference {
                 if theme.theme.isCreator {
                     items.append(.action(ContextMenuActionItem(text: presentationData.strings.Appearance_EditTheme, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/ApplyTheme"), color: theme.contextMenu.primaryColor) }, action: { c, f in
@@ -718,7 +1085,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                 }
                             })
                         })
-                        
+
                         c?.dismiss(completion: {
                             pushControllerImpl?(controller)
                         })
@@ -728,7 +1095,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                         guard let theme = makePresentationTheme(mediaBox: context.sharedContext.accountManager.mediaBox, themeReference: reference, preview: false) else {
                             return
                         }
-                        
+
                         let resolvedWallpaper: Signal<TelegramWallpaper, NoError>
                         if case let .file(file) = theme.chat.defaultWallpaper, file.id == 0 {
                             resolvedWallpaper = cachedWallpaper(engine: context.engine, network: context.account.network, slug: file.slug, settings: file.settings)
@@ -738,7 +1105,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                         } else {
                             resolvedWallpaper = .single(theme.chat.defaultWallpaper)
                         }
-                        
+
                         let _ = (resolvedWallpaper
                         |> deliverOnMainQueue).start(next: { wallpaper in
                             let controller = ThemeAccentColorController(context: context, mode: .edit(settings: nil, theme: theme, wallpaper: wallpaper, generalThemeReference: reference.generalThemeReference, defaultThemeReference: nil, create: true, completion: { result, settings in
@@ -766,7 +1133,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                     return controllers
                                 })
                             }))
-                            
+
                             c?.dismiss(completion: {
                                 pushControllerImpl?(controller)
                             })
@@ -796,7 +1163,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                     updated.insert(theme.theme.id)
                                     return updated
                                 })))
-                                
+
                                 if isCurrent, let currentThemeIndex = themes.firstIndex(where: { $0.id == theme.theme.id }) {
                                     if let settings = theme.theme.settings?.first {
                                         if settings.baseTheme == .night {
@@ -816,7 +1183,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                         selectThemeImpl?(newTheme)
                                     }
                                 }
-                                
+
                                 let _ = deleteThemeInteractively(account: context.account, accountManager: context.sharedContext.accountManager, theme: theme.theme).start()
                             })
                         }))
@@ -837,7 +1204,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                     })
                 })))
             }
-            
+
             let contextController = makeContextController(presentationData: presentationData, source: .controller(ContextControllerContentSourceImpl(controller: themeController, sourceNode: node)), items: .single(ContextController.Items(content: .list(items))), gesture: gesture)
             presentInGlobalOverlayImpl?(contextController, nil)
         })
@@ -866,7 +1233,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             } else {
                 generalThemeReference = reference
             }
-            
+
             let effectiveWallpaper: TelegramWallpaper
             let effectiveThemeReference: PresentationThemeReference
             if let accentColor = accentColor, case let .theme(themeReference) = accentColor {
@@ -874,7 +1241,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             } else {
                 effectiveThemeReference = reference
             }
-            
+
             if let wallpaper = wallpaper {
                 effectiveWallpaper = wallpaper
             } else {
@@ -893,7 +1260,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                 }
                 effectiveWallpaper = theme?.chat.defaultWallpaper ?? .builtin(WallpaperSettings())
             }
-            
+
             let wallpaperSignal: Signal<TelegramWallpaper, NoError>
             if case let .file(file) = effectiveWallpaper, file.id == 0 {
                 wallpaperSignal = cachedWallpaper(engine: context.engine, network: context.account.network, slug: file.slug, settings: file.settings)
@@ -903,7 +1270,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             } else {
                 wallpaperSignal = .single(effectiveWallpaper)
             }
-            
+
             return wallpaperSignal
             |> mapToSignal { wallpaper in
                 return chatServiceBackgroundColor(wallpaper: wallpaper, mediaBox: context.sharedContext.accountManager.mediaBox)
@@ -946,7 +1313,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             let strings = presentationData.strings
             let themeController = ThemePreviewController(context: context, previewTheme: theme, source: .settings(effectiveThemeReference, wallpaper, true))
             var items: [ContextMenuItem] = []
-            
+
             if let accentColor = accentColor {
                 if case let .accentColor(color) = accentColor, color.baseColor != .custom {
                 } else if case let .theme(theme) = accentColor, case let .cloud(cloudTheme) = theme {
@@ -963,7 +1330,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                     }
                                 })
                             })
-                            
+
                             c?.dismiss(completion: {
                                 pushControllerImpl?(controller)
                             })
@@ -973,7 +1340,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                             guard let theme = makePresentationTheme(mediaBox: context.sharedContext.accountManager.mediaBox, themeReference: effectiveThemeReference, preview: false) else {
                                 return
                             }
-                            
+
                             let resolvedWallpaper: Signal<TelegramWallpaper, NoError>
                             if case let .file(file) = theme.chat.defaultWallpaper, file.id == 0 {
                                 resolvedWallpaper = cachedWallpaper(engine: context.engine, network: context.account.network, slug: file.slug, settings: file.settings)
@@ -983,7 +1350,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                             } else {
                                 resolvedWallpaper = .single(theme.chat.defaultWallpaper)
                             }
-                            
+
                             let _ = (resolvedWallpaper
                             |> deliverOnMainQueue).start(next: { wallpaper in
                                 var hasSettings = false
@@ -1016,7 +1383,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                         return controllers
                                     })
                                 }))
-                                
+
                                 c?.dismiss(completion: {
                                     pushControllerImpl?(controller)
                                 })
@@ -1047,7 +1414,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                              updated.insert(cloudTheme.theme.id)
                                              return updated
                                          })))
-                                        
+
                                         if isCurrent, let settings = cloudTheme.theme.settings?.first {
                                             let colorThemes = themes.filter { theme in
                                                 if let _ = theme.settings {
@@ -1056,7 +1423,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                                     return false
                                                 }
                                             }
-                                            
+
                                             if let currentThemeIndex = colorThemes.firstIndex(where: { $0.id == cloudTheme.theme.id }) {
                                                 let previousThemeIndex = themes.prefix(upTo: currentThemeIndex).reversed().firstIndex(where: { $0.file != nil })
                                                 if let previousThemeIndex = previousThemeIndex {
@@ -1071,7 +1438,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                                                 }
                                             }
                                         }
-                                        
+
                                         let _ = deleteThemeInteractively(account: context.account, accountManager: context.sharedContext.accountManager, theme: cloudTheme.theme).start()
                                     })
                                 }))
@@ -1089,32 +1456,63 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             let contextController = makeContextController(presentationData: presentationData, source: .controller(ContextControllerContentSourceImpl(controller: themeController, sourceNode: node)), items: .single(ContextController.Items(content: .list(items))), gesture: gesture)
             presentInGlobalOverlayImpl?(contextController, nil)
         })
+    }, updateWinterGramSettingsPreview: { f in
+        let updatedSettings = f(winterGramPreviewSettingsValue.with { $0 } ?? currentWinterGramSettings)
+        let _ = winterGramPreviewSettingsValue.swap(updatedSettings)
+        setCurrentWinterGramSettings(updatedSettings)
+        winterGramPreviewSettingsPromise.set(updatedSettings)
+    }, updateWinterGramSettings: { f in
+        let _ = (updateWinterGramSettingsInteractively(accountManager: context.sharedContext.accountManager, f)
+        |> deliverOnMainQueue).startStandalone(next: { _ in
+            let _ = winterGramPreviewSettingsValue.swap(nil)
+            winterGramPreviewSettingsPromise.set(nil)
+        })
+    }, toggleIconPackExpanded: {
+        let nextValue = !iconPackExpandedValue.with { $0 }
+        let _ = iconPackExpandedValue.swap(nextValue)
+        iconPackExpandedPromise.set(nextValue)
+    }, toggleBannerExpanded: {
+        let nextValue = !bannerExpandedValue.with { $0 }
+        let _ = bannerExpandedValue.swap(nextValue)
+        bannerExpandedPromise.set(nextValue)
     })
 
-    let signal = combineLatest(
+    let sharedDataAndWinterGramPreview = combineLatest(
         queue: .mainQueue(),
-        context.sharedContext.presentationData,
         context.sharedContext.accountManager.sharedData(keys: [
             ApplicationSpecificSharedDataKeys.presentationThemeSettings,
             ApplicationSpecificSharedDataKeys.chatSettings,
             ApplicationSpecificSharedDataKeys.mediaDisplaySettings,
+            ApplicationSpecificSharedDataKeys.winterGramSettings,
             SharedDataKeys.chatThemes
         ]),
+        winterGramPreviewSettingsPromise.get()
+    )
+
+    let signal = combineLatest(
+        queue: .mainQueue(),
+        context.sharedContext.presentationData,
+        sharedDataAndWinterGramPreview,
         cloudThemes.get(),
         availableAppIcons,
         currentAppIconName.get(),
+        iconPackExpandedPromise.get(),
+        bannerExpandedPromise.get(),
         removedThemeIndexesPromise.get(),
         animatedEmojiStickers,
         context.account.postbox.peerView(id: context.account.peerId),
         context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId))
     )
-    |> map { presentationData, sharedData, cloudThemes, availableAppIcons, currentAppIconName, removedThemeIndexes, animatedEmojiStickers, peerView, accountPeer -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    |> map { presentationData, sharedDataAndWinterGramPreview, cloudThemes, availableAppIcons, currentAppIconName, iconPackExpanded, bannerExpanded, removedThemeIndexes, animatedEmojiStickers, peerView, accountPeer -> (ItemListControllerState, (ItemListNodeState, Any)) in
+        let (sharedData, winterGramPreviewSettings) = sharedDataAndWinterGramPreview
         let settings = sharedData.entries[ApplicationSpecificSharedDataKeys.presentationThemeSettings]?.get(PresentationThemeSettings.self) ?? PresentationThemeSettings.defaultSettings
         let chatSettings = sharedData.entries[ApplicationSpecificSharedDataKeys.chatSettings]?.get(ChatSettings.self) ?? ChatSettings.defaultSettings
         let mediaSettings = sharedData.entries[ApplicationSpecificSharedDataKeys.mediaDisplaySettings]?.get(MediaDisplaySettings.self) ?? MediaDisplaySettings.defaultSettings
-        
+        let storedWinterGramSettings = sharedData.entries[ApplicationSpecificSharedDataKeys.winterGramSettings]?.get(WinterGramSettings.self) ?? WinterGramSettings.defaultSettings
+        let winterGramSettings = winterGramPreviewSettings ?? storedWinterGramSettings
+
         let isPremium = peerView.peers[peerView.peerId]?.isPremium ?? false
-        
+
         let themeReference: PresentationThemeReference
         if presentationData.autoNightModeTriggered {
             if let _ = settings.theme.emoticon {
@@ -1125,7 +1523,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
         } else {
             themeReference = settings.theme
         }
-        
+
         var defaultThemes: [PresentationThemeReference] = []
         if presentationData.autoNightModeTriggered {
             defaultThemes.append(contentsOf: [.builtin(.nightAccent), .builtin(.night)])
@@ -1137,24 +1535,24 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                 .builtin(.night)
             ])
         }
-        
+
         let cloudThemes: [PresentationThemeReference] = cloudThemes.map { .cloud(PresentationCloudTheme(theme: $0, resolvedWallpaper: nil, creatorAccountId: $0.isCreator ? context.account.id : nil)) }.filter { !removedThemeIndexes.contains($0.index) }
-        
+
         var availableThemes = defaultThemes
         if defaultThemes.first(where: { $0.index == themeReference.index }) == nil && cloudThemes.first(where: { $0.index == themeReference.index }) == nil {
             availableThemes.append(themeReference)
         }
         availableThemes.append(contentsOf: cloudThemes)
-        
+
         var chatThemes = cloudThemes.filter { $0.emoticon != nil }
         chatThemes.insert(.builtin(.dayClassic), at: 0)
-        
+
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(presentationData.strings.Appearance_Title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: themeSettingsControllerEntries(presentationData: presentationData, presentationThemeSettings: settings, chatSettings: chatSettings, mediaSettings: mediaSettings, themeReference: themeReference, availableThemes: availableThemes, availableAppIcons: availableAppIcons, currentAppIconName: currentAppIconName, isPremium: isPremium, chatThemes: chatThemes, animatedEmojiStickers: animatedEmojiStickers, accountPeer: accountPeer, nameColors: context.peerNameColors), style: .blocks, ensureVisibleItemTag: focusOnItemTag, animateChanges: false)
-        
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: themeSettingsControllerEntries(context: context, presentationData: presentationData, presentationThemeSettings: settings, chatSettings: chatSettings, mediaSettings: mediaSettings, winterGramSettings: winterGramSettings, themeReference: themeReference, availableThemes: availableThemes, availableAppIcons: availableAppIcons, currentAppIconName: currentAppIconName, iconPackExpanded: iconPackExpanded, bannerExpanded: bannerExpanded, isPremium: isPremium, chatThemes: chatThemes, animatedEmojiStickers: animatedEmojiStickers, accountPeer: accountPeer, nameColors: context.peerNameColors), style: .blocks, ensureVisibleItemTag: focusOnItemTag, animateChanges: false)
+
         return (controllerState, (listState, arguments))
     }
-    
+
     let controller = ThemeSettingsControllerImpl(context: context, state: signal)
     controller.alwaysSynchronous = true
     pushControllerImpl = { [weak controller] c in
@@ -1180,12 +1578,12 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             var bottomOffset: CGFloat?
             var leftOffset: CGFloat?
             var themeItemNode: ThemeCarouselThemeItemNode?
-            
+
             var view: UIView?
             if #available(iOS 11.0, *) {
                 view = controller.navigationController?.view
             }
-            
+
             let controllerFrame = controller.view.convert(controller.view.bounds, to: controller.navigationController?.view)
             if controllerFrame.minX > 0.0 {
                 leftOffset = controllerFrame.minX
@@ -1193,7 +1591,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             if controllerFrame.minY > 100.0 {
                 view = nil
             }
-            
+
             controller.forEachItemNode { node in
                 if let itemNode = node as? ItemListItemNode {
                     if let itemTag = itemNode.tag {
@@ -1208,7 +1606,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                     }
                 }
             }
-            
+
             if let navigationBar = controller.navigationBar {
                 if let offset = topOffset {
                     topOffset = max(offset, navigationBar.frame.maxY)
@@ -1216,20 +1614,20 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                     topOffset = navigationBar.frame.maxY
                 }
             }
-            
+
             if view != nil {
                 themeItemNode?.prepareCrossfadeTransition()
             }
-            
+
             let sectionInset = max(16.0, floor((controller.displayNode.frame.width - 674.0) / 2.0))
-            
+
             let crossfadeController = ThemeSettingsCrossfadeController(view: view, topOffset: topOffset, bottomOffset: bottomOffset, leftOffset: leftOffset, sideInset: sectionInset)
             crossfadeController.didAppear = { [weak themeItemNode] in
                 if view != nil {
                     themeItemNode?.animateCrossfadeTransition()
                 }
             }
-            
+
             context.sharedContext.presentGlobalController(crossfadeController, nil)
         }
     }
@@ -1237,9 +1635,9 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
         guard let presentationTheme = makePresentationTheme(mediaBox: context.sharedContext.accountManager.mediaBox, themeReference: theme) else {
             return
         }
-        
+
         let autoNightModeTriggered = context.sharedContext.currentPresentationData.with { $0 }.autoNightModeTriggered
-        
+
         let resolvedWallpaper: Signal<TelegramWallpaper?, NoError>
         if case let .file(file) = presentationTheme.chat.defaultWallpaper, file.id == 0 {
             resolvedWallpaper = cachedWallpaper(engine: context.engine, network: context.account.network, slug: file.slug, settings: file.settings)
@@ -1249,13 +1647,13 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
         } else {
             resolvedWallpaper = .single(nil)
         }
-        
+
         var cloudTheme: TelegramTheme?
         if case let .cloud(theme) = theme {
             cloudTheme = theme.theme
         }
         let _ = applyTheme(accountManager: context.sharedContext.accountManager, account: context.account, theme: cloudTheme).start()
-        
+
         let currentTheme = context.sharedContext.accountManager.transaction { transaction -> (PresentationThemeReference) in
             let settings = transaction.getSharedData(ApplicationSpecificSharedDataKeys.presentationThemeSettings)?.get(PresentationThemeSettings.self) ?? PresentationThemeSettings.defaultSettings
             if autoNightModeTriggered {
@@ -1264,7 +1662,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                 return settings.theme
             }
         }
-        
+
         let _ = (combineLatest(resolvedWallpaper, currentTheme)
         |> map { resolvedWallpaper, currentTheme -> Bool in
             var updatedTheme = theme
@@ -1274,7 +1672,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             } else {
                 currentThemeBaseIndex = currentTheme.index
             }
-            
+
             var baseThemeIndex: Int64?
             var updatedThemeBaseIndex: Int64?
             if case let .cloud(info) = theme {
@@ -1303,7 +1701,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                 return current.withUpdatedTheme(updatedTheme).withUpdatedAutomaticThemeSwitchSetting(updatedAutomaticThemeSwitchSetting)
 
             }).start()
-            
+
             return currentThemeBaseIndex != updatedThemeBaseIndex
         } |> deliverOnMainQueue).start(next: { crossfadeAccentColors in
             presentCrossfadeControllerImpl?((cloudTheme == nil || cloudTheme?.settings != nil) && !crossfadeAccentColors)
@@ -1325,13 +1723,13 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                     let _ = context.engine.resources.fetch(reference: .wallpaper(wallpaper: .slug(file.slug), resource: file.file.resource), userLocation: .other, userContentType: .other).start()
 
                     return .single(wallpaper)
-    
+
                 } else {
                     return .single(nil)
                 }
             }
         }
-        
+
         let _ = (wallpaperSignal
         |> deliverOnMainQueue).start(next: { presetWallpaper in
             let _ = updatePresentationThemeSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
@@ -1340,33 +1738,33 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                 if autoNightModeTriggered {
                     currentTheme = current.automaticThemeSwitchSetting.theme
                 }
-                
+
                 let generalThemeReference: PresentationThemeReference
                 if case let .cloud(theme) = currentTheme, let settings = theme.theme.settings?.first {
                     generalThemeReference = .builtin(PresentationBuiltinThemeReference(baseTheme: settings.baseTheme))
                 } else {
                     generalThemeReference = currentTheme
                 }
-                
+
                 currentTheme = generalThemeReference
                 var updatedTheme = current.theme
                 var updatedAutomaticThemeSwitchSetting = current.automaticThemeSwitchSetting
-                
+
                 if autoNightModeTriggered {
                     updatedAutomaticThemeSwitchSetting.theme = generalThemeReference
                 } else {
                     updatedTheme = generalThemeReference
                 }
-                
+
                 guard let _ = makePresentationTheme(mediaBox: context.sharedContext.accountManager.mediaBox, themeReference: generalThemeReference, accentColor: accentColor?.color, wallpaper: presetWallpaper, baseColor: accentColor?.baseColor) else {
                     return current
                 }
-                
+
                 let themePreferredBaseTheme = current.themePreferredBaseTheme
                 var themeSpecificChatWallpapers = current.themeSpecificChatWallpapers
                 var themeSpecificAccentColors = current.themeSpecificAccentColors
                 themeSpecificAccentColors[generalThemeReference.index] = accentColor?.withUpdatedWallpaper(presetWallpaper)
-                
+
                 if case .builtin = generalThemeReference {
                     let index = coloredThemeIndex(reference: currentTheme, accentColor: accentColor)
                     if let wallpaper = current.themeSpecificChatWallpapers[index] {
@@ -1377,14 +1775,14 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
                         themeSpecificChatWallpapers[index] = presetWallpaper
                     }
                 }
-                
+
                 return PresentationThemeSettings(theme: updatedTheme, themePreferredBaseTheme: themePreferredBaseTheme, themeSpecificAccentColors: themeSpecificAccentColors, themeSpecificChatWallpapers: themeSpecificChatWallpapers, useSystemFont: current.useSystemFont, fontSize: current.fontSize, listsFontSize: current.listsFontSize, chatBubbleSettings: current.chatBubbleSettings, automaticThemeSwitchSetting: updatedAutomaticThemeSwitchSetting, largeEmoji: current.largeEmoji, reduceMotion: current.reduceMotion)
             }).start()
-            
+
             presentCrossfadeControllerImpl?(true)
         })
     }
-    
+
     if let focusOnItemTag {
         var didFocusOnItem = false
         controller.afterTransactionCompleted = { [weak controller] in
@@ -1398,22 +1796,22 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
             }
         }
     }
-    
+
     return controller
 }
 
 public final class ThemeSettingsCrossfadeController: ViewController {
     private var snapshotView: UIView?
-    
+
     private var topSnapshotView: UIView?
     private var bottomSnapshotView: UIView?
     private var sideSnapshotView: UIView?
-    
+
     private var leftSnapshotView: UIView?
     private var rightSnapshotView: UIView?
-    
+
     var didAppear: (() -> Void)?
-    
+
     public init(view: UIView? = nil, topOffset: CGFloat? = nil, bottomOffset: CGFloat? = nil, leftOffset: CGFloat? = nil, sideInset: CGFloat = 0.0) {
         if let view = view {
             if let leftOffset = leftOffset {
@@ -1421,61 +1819,61 @@ public final class ThemeSettingsCrossfadeController: ViewController {
                     let clipView = UIView()
                     clipView.clipsToBounds = true
                     clipView.addSubview(view)
-                    
+
                     view.clipsToBounds = true
                     view.contentMode = .topLeft
-                    
+
                     if let topOffset = topOffset, let bottomOffset = bottomOffset {
                         var frame = view.frame
                         frame.origin.y = topOffset
                         frame.size.width = leftOffset + sideInset
                         frame.size.height = bottomOffset - topOffset
                         clipView.frame = frame
-                        
+
                         frame = view.frame
                         frame.origin.y = -topOffset
                         frame.size.width = leftOffset + sideInset
                         frame.size.height = bottomOffset
                         view.frame = frame
                     }
-                
+
                     self.sideSnapshotView = clipView
                 }
             }
-            
+
             if sideInset > 0.0 {
                 if let view = view.snapshotView(afterScreenUpdates: false), leftOffset == nil {
                     let clipView = UIView()
                     clipView.clipsToBounds = true
                     clipView.addSubview(view)
-                    
+
                     view.clipsToBounds = true
                     view.contentMode = .topLeft
-                    
+
                     if let topOffset = topOffset, let bottomOffset = bottomOffset {
                         var frame = view.frame
                         frame.origin.y = topOffset
                         frame.size.width = sideInset
                         frame.size.height = bottomOffset - topOffset
                         clipView.frame = frame
-                        
+
                         frame = view.frame
                         frame.origin.y = -topOffset
                         frame.size.width = sideInset
                         frame.size.height = bottomOffset
                         view.frame = frame
                     }
-                
+
                     self.leftSnapshotView = clipView
                 }
                 if let view = view.snapshotView(afterScreenUpdates: false) {
                     let clipView = UIView()
                     clipView.clipsToBounds = true
                     clipView.addSubview(view)
-                    
+
                     view.clipsToBounds = true
                     view.contentMode = .topRight
-                    
+
                     if let topOffset = topOffset, let bottomOffset = bottomOffset {
                         var frame = view.frame
                         frame.origin.x = frame.width - sideInset
@@ -1483,18 +1881,18 @@ public final class ThemeSettingsCrossfadeController: ViewController {
                         frame.size.width = sideInset
                         frame.size.height = bottomOffset - topOffset
                         clipView.frame = frame
-                        
+
                         frame = view.frame
                         frame.origin.y = -topOffset
                         frame.size.width = sideInset
                         frame.size.height = bottomOffset
                         view.frame = frame
                     }
-                
+
                     self.rightSnapshotView = clipView
                 }
             }
-            
+
             if let view = view.snapshotView(afterScreenUpdates: false) {
                 view.clipsToBounds = true
                 view.contentMode = .top
@@ -1505,7 +1903,7 @@ public final class ThemeSettingsCrossfadeController: ViewController {
                 }
                 self.topSnapshotView = view
             }
-            
+
             if let view = view.snapshotView(afterScreenUpdates: false) {
                 view.clipsToBounds = true
                 view.contentMode = .bottom
@@ -1521,17 +1919,17 @@ public final class ThemeSettingsCrossfadeController: ViewController {
             self.snapshotView = UIScreen.main.snapshotView(afterScreenUpdates: false)
         }
         super.init(navigationBarPresentationData: nil)
-        
+
         self.statusBar.statusBarStyle = .Ignore
     }
-    
+
     required public init(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     override public func loadDisplayNode() {
         self.displayNode = ViewControllerTracingNode()
-        
+
         self.displayNode.backgroundColor = nil
         self.displayNode.isOpaque = false
         self.displayNode.isUserInteractionEnabled = false
@@ -1554,14 +1952,14 @@ public final class ThemeSettingsCrossfadeController: ViewController {
              self.displayNode.view.addSubview(rightSnapshotView)
         }
     }
-    
+
     override public func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        
+
         self.displayNode.layer.animateAlpha(from: 1.0, to: 0.0, duration: 0.3, removeOnCompletion: false, completion: { [weak self] _ in
             self?.presentingViewController?.dismiss(animated: false, completion: nil)
         })
-        
+
         self.didAppear?()
     }
 }
@@ -1569,16 +1967,16 @@ public final class ThemeSettingsCrossfadeController: ViewController {
 private final class ContextControllerContentSourceImpl: ContextControllerContentSource {
     let controller: ViewController
     weak var sourceNode: ASDisplayNode?
-    
+
     let navigationController: NavigationController? = nil
-    
+
     let passthroughTouches: Bool = false
-    
+
     init(controller: ViewController, sourceNode: ASDisplayNode?) {
         self.controller = controller
         self.sourceNode = sourceNode
     }
-    
+
     func transitionInfo() -> ContextControllerTakeControllerInfo? {
         let sourceNode = self.sourceNode
         return ContextControllerTakeControllerInfo(contentAreaInScreenSpace: CGRect(origin: CGPoint(), size: CGSize(width: 10.0, height: 10.0)), sourceNode: { [weak sourceNode] in
@@ -1589,7 +1987,7 @@ private final class ContextControllerContentSourceImpl: ContextControllerContent
             }
         })
     }
-    
+
     func animatedIn() {
     }
 }

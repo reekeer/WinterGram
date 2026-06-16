@@ -17,12 +17,12 @@ private func dateStringForDay(strings: PresentationStrings, dateTimeFormat: Pres
     var t: time_t = time_t(timestamp)
     var timeinfo: tm = tm()
     localtime_r(&t, &timeinfo)
-    
+
     let timestampNow = Int32(CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970)
     var now: time_t = time_t(timestampNow)
     var timeinfoNow: tm = tm()
     localtime_r(&now, &timeinfoNow)
-    
+
     if timeinfo.tm_year != timeinfoNow.tm_year {
         return "\(stringForTimestamp(day: timeinfo.tm_mday, month: timeinfo.tm_mon + 1, year: timeinfo.tm_year, dateTimeFormat: dateTimeFormat))"
     } else {
@@ -61,6 +61,35 @@ private func monthAtIndex(_ index: Int, strings: PresentationStrings) -> String 
     }
 }
 
+private func winterGramStringForMessageTimestamp(timestamp: Int32, dateTimeFormat: PresentationDateTimeFormat) -> String {
+    if !currentWinterGramSettings.showMessageSeconds {
+        return stringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)
+    }
+
+    var t: time_t = time_t(timestamp)
+    var timeinfo: tm = tm()
+    localtime_r(&t, &timeinfo)
+
+    let hour: Int32
+    let suffix: String
+    switch dateTimeFormat.timeFormat {
+    case .military:
+        hour = Int32(timeinfo.tm_hour)
+        suffix = ""
+    case .regular:
+        if timeinfo.tm_hour == 0 {
+            hour = 12
+        } else if timeinfo.tm_hour > 12 {
+            hour = Int32(timeinfo.tm_hour - 12)
+        } else {
+            hour = Int32(timeinfo.tm_hour)
+        }
+        suffix = timeinfo.tm_hour >= 12 ? " PM" : " AM"
+    }
+
+    return String(format: "%02d:%02d:%02d%@", hour, Int32(timeinfo.tm_min), Int32(timeinfo.tm_sec), suffix)
+}
+
 public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, message: EngineMessage, dateTimeFormat: PresentationDateTimeFormat, nameDisplayOrder: PresentationPersonNameOrder, strings: PresentationStrings, format: MessageTimestampStatusFormat = .regular, associatedData: ChatMessageItemAssociatedData, ignoreAuthor: Bool = false) -> String {
     if let adAttribute = message.adAttribute {
         switch adAttribute.messageType {
@@ -70,14 +99,14 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
             return strings.Message_RecommendedLabel
         }
     }
-    
+
     var timestamp: Int32
     if let scheduleTime = message.scheduleTime {
         timestamp = scheduleTime
     } else {
         timestamp = message.timestamp
     }
-    
+
     var displayFullDate = false
     if case .full = format, timestamp > 100000 {
         displayFullDate = true
@@ -85,16 +114,16 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
         displayFullDate = true
         timestamp = forwardInfo.date
     }
-    
+
     if let sourceAuthorInfo = message.sourceAuthorInfo, let orignalDate = sourceAuthorInfo.orignalDate {
         timestamp = orignalDate
     }
-    
-    var dateText = stringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)
+
+    var dateText = winterGramStringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)
     if timestamp == scheduleWhenOnlineTimestamp {
         dateText = "         "
     }
-    
+
     if let repeatPeriod = message.scheduleRepeatPeriod {
         let repeatString: String
         switch repeatPeriod {
@@ -121,24 +150,24 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
         }
         dateText = strings.Message_RepeatAt(repeatString, dateText).string
     }
-    
+
     if message.id.namespace == Namespaces.Message.ScheduledCloud, let _ = message.pendingProcessingAttribute {
         return strings.Message_Approximate(dateText).string
     }
-    
+
     if displayFullDate {
         let dayText: String
-        
+
         let nowTimestamp = Int32(CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970)
-        
+
         var t: time_t = time_t(timestamp)
         var timeinfo: tm = tm()
         localtime_r(&t, &timeinfo)
-        
+
         var now: time_t = time_t(nowTimestamp)
         var timeinfoNow: tm = tm()
         localtime_r(&now, &timeinfoNow)
-        
+
         if timeinfo.tm_year == timeinfoNow.tm_year {
             if format != .full, timeinfo.tm_yday == timeinfoNow.tm_yday {
                 dayText = strings.Weekday_Today
@@ -148,11 +177,11 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
         } else {
             dayText = strings.Date_ChatDateHeaderYear(monthAtIndex(Int(timeinfo.tm_mon), strings: strings), "\(timeinfo.tm_mday)", "\(1900 + timeinfo.tm_year)").string
         }
-        dateText = strings.Message_FullDateFormat(dayText, stringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)).string
+        dateText = strings.Message_FullDateFormat(dayText, winterGramStringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)).string
     } else if let forwardInfo = message.forwardInfo, forwardInfo.flags.contains(.isImported) {
-        dateText = strings.Message_ImportedDateFormat(dateStringForDay(strings: strings, dateTimeFormat: dateTimeFormat, timestamp: forwardInfo.date), stringForMessageTimestamp(timestamp: forwardInfo.date, dateTimeFormat: dateTimeFormat), dateText).string
+        dateText = strings.Message_ImportedDateFormat(dateStringForDay(strings: strings, dateTimeFormat: dateTimeFormat, timestamp: forwardInfo.date), winterGramStringForMessageTimestamp(timestamp: forwardInfo.date, dateTimeFormat: dateTimeFormat), dateText).string
     }
-    
+
     var authorTitle: String?
     if let author = message.author, case .user = author {
         if let peer = message.peers[message.id.peerId] as? TelegramChannel, case .broadcast = peer.info {
@@ -175,7 +204,7 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
                 }
             }
         }
-        
+
         if message.id.peerId != accountPeerId {
             for attribute in message.attributes {
                 if let attribute = attribute as? SourceReferenceMessageAttribute {
@@ -191,7 +220,7 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
             }
         }
     }
-    
+
     if authorTitle == nil {
         for attribute in message.attributes {
             if let attribute = attribute as? InlineBusinessBotMessageAttribute {
@@ -203,21 +232,21 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
             }
         }
     }
-    
+
     if let subject = associatedData.subject, case let .messageOptions(_, _, info) = subject, case .forward = info {
         authorTitle = nil
     }
     if ignoreAuthor {
         authorTitle = nil
     }
-    
+
     if case .minimal = format {
-        
+
     } else {
         if let authorTitle = authorTitle, !authorTitle.isEmpty {
             dateText = "\(authorTitle), \(dateText)"
         }
     }
-    
+
     return dateText
 }

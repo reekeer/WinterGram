@@ -13,6 +13,7 @@ import PhoneNumberFormat
 import TelegramStringFormatting
 import EmojiStatusComponent
 import GlassBackgroundComponent
+import AppBundle
 
 public final class ChatNavigationBarTitleView: UIView, NavigationBarTitleView {
     private final class ContentData: Equatable {
@@ -24,7 +25,7 @@ public final class ChatNavigationBarTitleView: UIView, NavigationBarTitleView {
         let dateTimeFormat: PresentationDateTimeFormat
         let nameDisplayOrder: PresentationPersonNameOrder
         let content: ChatTitleContent
-        
+
         init(context: AccountContext, theme: PresentationTheme, preferClearGlass: Bool, wallpaper: TelegramWallpaper, strings: PresentationStrings, dateTimeFormat: PresentationDateTimeFormat, nameDisplayOrder: PresentationPersonNameOrder, content: ChatTitleContent) {
             self.context = context
             self.theme = theme
@@ -35,7 +36,7 @@ public final class ChatNavigationBarTitleView: UIView, NavigationBarTitleView {
             self.nameDisplayOrder = nameDisplayOrder
             self.content = content
         }
-        
+
         static func ==(lhs: ContentData, rhs: ContentData) -> Bool {
             if lhs.context !== rhs.context {
                 return false
@@ -64,36 +65,36 @@ public final class ChatNavigationBarTitleView: UIView, NavigationBarTitleView {
             return true
         }
     }
-    
+
     private let parentTitleState = ComponentState()
     private let title = ComponentView<Empty>()
-    
+
     private var contentData: ContentData?
     private var activities: ChatTitleComponent.Activities?
     private var networkState: AccountNetworkState?
-    
+
     private var ignoreParentTransitionRequests: Bool = false
     public var requestUpdate: ((ContainedViewLayoutTransition) -> Void)?
-    
+
     public var tapAction: (() -> Void)?
     public var longTapAction: (() -> Void)?
-    
+
     override public init(frame: CGRect) {
         super.init(frame: frame)
     }
-    
+
     required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     public func animateLayoutTransition() {
     }
-    
+
     public func prepareSnapshotState() -> ChatTitleView.SnapshotState? {
         //return titleView.contentView?.snapshotView(afterScreenUpdates: false)
         return nil
     }
-    
+
     public func animateFromSnapshot(_ snapshotState: ChatTitleView.SnapshotState, direction: ChatTitleView.AnimateFromSnapshotDirection) {
         guard let titleView = self.title.view as? ChatTitleComponent.View else {
             return
@@ -101,7 +102,7 @@ public final class ChatNavigationBarTitleView: UIView, NavigationBarTitleView {
         //titleView.contentView?.animateFromSnapshot(snapshotState, direction: direction)
         titleView.layer.animateAlpha(from: 0.0, to: 1.0, duration: 0.2)
     }
-    
+
     public func update(
         context: AccountContext,
         theme: PresentationTheme,
@@ -129,36 +130,36 @@ public final class ChatNavigationBarTitleView: UIView, NavigationBarTitleView {
         self.contentData = contentData
         self.update(transition: transition)
         self.ignoreParentTransitionRequests = false
-        
+
         return isUpdated
     }
-    
+
     public func updateActivities(activities: ChatTitleComponent.Activities?, transition: ComponentTransition) {
         if self.activities != activities {
             self.activities = activities
             self.update(transition: transition)
         }
     }
-    
+
     public func updateNetworkState(networkState: AccountNetworkState, transition: ComponentTransition) {
         if self.networkState != networkState {
             self.networkState = networkState
             self.update(transition: transition)
         }
     }
-    
+
     private func update(transition: ComponentTransition) {
         if !self.ignoreParentTransitionRequests {
             self.requestUpdate?(transition.containedViewLayoutTransition)
         }
     }
-    
+
     public func updateLayout(availableSize: CGSize, transition: ContainedViewLayoutTransition) -> CGSize {
         let transition = ComponentTransition(transition)
-        
+
         if let contentData = self.contentData {
             let displayBackground: Bool = true
-            
+
             let titleSize = self.title.update(
                 transition: transition,
                 component: AnyComponent(ChatTitleComponent(
@@ -213,22 +214,22 @@ public final class ChatTitleComponent: Component {
         public struct Item: Equatable {
             public let peer: EnginePeer
             public let activity: PeerInputActivity
-            
+
             public init(peer: EnginePeer, activity: PeerInputActivity) {
                 self.peer = peer
                 self.activity = activity
             }
         }
-        
+
         public let peerId: EnginePeer.Id
         public let items: [Item]
-        
+
         public init(peerId: EnginePeer.Id, items: [Item]) {
             self.peerId = peerId
             self.items = items
         }
     }
-    
+
     public let context: AccountContext
     public let theme: PresentationTheme
     public let preferClearGlass: Bool
@@ -241,7 +242,7 @@ public final class ChatTitleComponent: Component {
     public let networkState: AccountNetworkState?
     public let tapped: () -> Void
     public let longTapped: () -> Void
-    
+
     public init(
         context: AccountContext,
         theme: PresentationTheme,
@@ -269,7 +270,7 @@ public final class ChatTitleComponent: Component {
         self.tapped = tapped
         self.longTapped = longTapped
     }
-    
+
     public static func ==(lhs: ChatTitleComponent, rhs: ChatTitleComponent) -> Bool {
         if lhs.context !== rhs.context {
             return false
@@ -303,7 +304,7 @@ public final class ChatTitleComponent: Component {
         }
         return true
     }
-    
+
     public final class View: UIView {
         private var backgroundView: GlassBackgroundView?
         private let contentContainer: UIView
@@ -315,36 +316,37 @@ public final class ChatTitleComponent: Component {
         private var credibilityIcon: ComponentView<Empty>?
         private var verifiedIcon: ComponentView<Empty>?
         private var statusIcon: ComponentView<Empty>?
-        
+        private var winterGramIcon: ComponentView<Empty>?
+
         private var presenceManager: PeerPresenceStatusManager?
-        
+
         private var component: ChatTitleComponent?
         private weak var state: EmptyComponentState?
-        
+
         override init(frame: CGRect) {
             self.contentContainer = UIView()
             self.contentContainer.clipsToBounds = true
-            
+
             super.init(frame: frame)
-            
+
             self.presenceManager = PeerPresenceStatusManager(update: { [weak self] in
                 guard let self else {
                     return
                 }
                 self.state?.updated(transition: .spring(duration: 0.4))
             })
-            
+
             let recognizer = TapLongTapOrDoubleTapGestureRecognizer(target: self, action: #selector(self.onTapGesture(_:)))
             recognizer.tapActionAtPoint = { _ in
                 return .waitForSingleTap
             }
             self.contentContainer.addGestureRecognizer(recognizer)
         }
-        
+
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
-        
+
         @objc private func onTapGesture(_ recognizer: TapLongTapOrDoubleTapGestureRecognizer) {
             if let (gesture, _) = recognizer.lastRecognizedGestureAndLocation {
                 switch gesture {
@@ -357,22 +359,23 @@ public final class ChatTitleComponent: Component {
                 }
             }
         }
-        
+
         func update(component: ChatTitleComponent, availableSize: CGSize, state: EmptyComponentState, environment: Environment<Empty>, transition: ComponentTransition) -> CGSize {
             let statusIconsSpacing: CGFloat = 4.0
             let leftTitleIconSpacing: CGFloat = 3.0
             let rightTitleIconSpacing: CGFloat = 3.0
             let containerSideInset: CGFloat = 14.0
-            
+
             self.component = component
             self.state = state
-            
+
             var titleSegments: [AnimatedTextComponent.Item] = []
             var titleLeftIcon: TitleIconComponent.Kind?
             var titleRightIcon: TitleIconComponent.Kind?
             var titleCredibilityIcon: ChatTitleCredibilityIcon = .none
             var titleVerifiedIcon: ChatTitleCredibilityIcon = .none
             var titleStatusIcon: ChatTitleCredibilityIcon = .none
+            var titleWinterGramIcon: Bool = false
             var isEnabled = true
             switch component.content {
             case let .peer(peerView, customTitle, _, _, isScheduledMessages, isMuted, _, hidePeerStatus, isEnabledValue):
@@ -449,15 +452,18 @@ public final class ChatTitleComponent: Component {
                                 titleCredibilityIcon = .scam
                             } else if !hidePeerStatus, let emojiStatus = peer.emojiStatus {
                                 titleStatusIcon = .emojiStatus(emojiStatus)
-                            } else if peer.isPremium && !premiumConfiguration.isPremiumDisabled {
+                            } else if peer.isPremium && !currentWinterGramSettings.hidePremiumStatuses && !premiumConfiguration.isPremiumDisabled {
                                 titleCredibilityIcon = .premium
                             }
-                            
+
                             if peer.isVerified {
                                 titleCredibilityIcon = .verified
                             }
                             if let verificationIconFileId = peer.verificationIconFileId {
                                 titleVerifiedIcon = .emojiStatus(PeerEmojiStatus(content: .emoji(fileId: verificationIconFileId), expirationDate: nil))
+                            }
+                            if isWinterGramOfficialPeer(EnginePeer(peer)) {
+                                titleWinterGramIcon = true
                             }
                         }
                     }
@@ -492,7 +498,7 @@ public final class ChatTitleComponent: Component {
                     case .replies:
                         commentsPart = component.strings.Conversation_TitleReplies(Int32(count))
                     }
-                    
+
                     if commentsPart.contains("[") && commentsPart.contains("]") {
                         if let startIndex = commentsPart.firstIndex(of: "["), let endIndex = commentsPart.firstIndex(of: "]") {
                             commentsPart.removeSubrange(startIndex ... endIndex)
@@ -500,7 +506,7 @@ public final class ChatTitleComponent: Component {
                     } else {
                         commentsPart = commentsPart.trimmingCharacters(in: CharacterSet(charactersIn: "0123456789-,."))
                     }
-                    
+
                     let rawTextAndRanges: PresentationStrings.FormattedString
                     switch type {
                     case .comments:
@@ -508,22 +514,22 @@ public final class ChatTitleComponent: Component {
                     case .replies:
                         rawTextAndRanges = component.strings.Conversation_TitleRepliesFormat("\(count)", commentsPart)
                     }
-                    
+
                     let rawText = rawTextAndRanges.string
-                    
+
                     var textIndex = 0
                     var latestIndex = 0
                     for indexAndRange in rawTextAndRanges.ranges {
                         let index = indexAndRange.index
                         let range = indexAndRange.range
-                        
+
                         var lowerSegmentIndex = range.lowerBound
                         if index != 0 {
                             lowerSegmentIndex = min(lowerSegmentIndex, latestIndex)
                         } else {
                             if latestIndex < range.lowerBound {
                                 let part = String(rawText[rawText.index(rawText.startIndex, offsetBy: latestIndex) ..< rawText.index(rawText.startIndex, offsetBy: range.lowerBound)])
-                                
+
                                 titleSegments.append(AnimatedTextComponent.Item(
                                     id: AnyHashable(textIndex),
                                     isUnbreakable: true,
@@ -533,7 +539,7 @@ public final class ChatTitleComponent: Component {
                             }
                         }
                         latestIndex = range.upperBound
-                        
+
                         let part = String(rawText[rawText.index(rawText.startIndex, offsetBy: lowerSegmentIndex) ..< rawText.index(rawText.startIndex, offsetBy: min(rawText.count, range.upperBound))])
                         if index == 0 {
                             titleSegments.append(AnimatedTextComponent.Item(
@@ -576,7 +582,7 @@ public final class ChatTitleComponent: Component {
                         )]
                     }
                 }
-                
+
                 isEnabled = false
             case let .custom(textItems, _, enabled):
                 titleSegments = textItems.map { item -> AnimatedTextComponent.Item in
@@ -595,7 +601,7 @@ public final class ChatTitleComponent: Component {
                 }
                 isEnabled = enabled
             }
-            
+
             var accessibilityText = ""
             for segment in titleSegments {
                 switch segment.content {
@@ -608,7 +614,7 @@ public final class ChatTitleComponent: Component {
                 }
             }
             self.accessibilityLabel = accessibilityText
-            
+
             var inputActivitiesAllowed = true
             switch component.content {
             case let .peer(peerView, _, _, _, isScheduledMessages, _, _, _, _):
@@ -622,7 +628,7 @@ public final class ChatTitleComponent: Component {
             default:
                 inputActivitiesAllowed = false
             }
-            
+
             let subtitleFont = Font.regular(12.0)
             var state: ChatTitleActivityNodeState = .none
             switch component.networkState {
@@ -738,7 +744,7 @@ public final class ChatTitleComponent: Component {
                                     } else {
                                         statusText = component.strings.Bot_GenericBotStatus
                                     }
-                                    
+
                                     let string = NSAttributedString(string: statusText, font: subtitleFont, textColor: component.theme.chat.inputPanel.inputControlColor)
                                     state = .info(string, .generic)
                                 } else if let peer = peerView.peer {
@@ -775,7 +781,7 @@ public final class ChatTitleComponent: Component {
                                 }
                                 if onlineCount > 1 {
                                     let string = NSMutableAttributedString()
-                                    
+
                                     string.append(NSAttributedString(string: "\(component.strings.Conversation_StatusMembers(Int32(group.participantCount))), ", font: subtitleFont, textColor: component.theme.chat.inputPanel.inputControlColor))
                                     string.append(NSAttributedString(string: component.strings.Conversation_StatusOnline(Int32(onlineCount)), font: subtitleFont, textColor: component.theme.chat.inputPanel.inputControlColor))
                                     state = .info(string, .generic)
@@ -799,7 +805,7 @@ public final class ChatTitleComponent: Component {
                                     } else {
                                         if case .group = channel.info, let onlineMemberCount = onlineMemberCount.recent, onlineMemberCount > 1 {
                                             let string = NSMutableAttributedString()
-                                            
+
                                             string.append(NSAttributedString(string: "\(component.strings.Conversation_StatusMembers(Int32(memberCount))), ", font: subtitleFont, textColor: component.theme.chat.inputPanel.inputControlColor))
                                             string.append(NSAttributedString(string: component.strings.Conversation_StatusOnline(Int32(onlineMemberCount)), font: subtitleFont, textColor: component.theme.chat.inputPanel.inputControlColor))
                                             state = .info(string, .generic)
@@ -832,11 +838,11 @@ public final class ChatTitleComponent: Component {
                     default:
                         break
                     }
-                    
+
                     self.accessibilityValue = state.string
                 }
             }
-            
+
             var rightIconSize: CGSize?
             if let titleRightIcon {
                 let rightIcon: ComponentView<Empty>
@@ -866,7 +872,7 @@ public final class ChatTitleComponent: Component {
                     })
                 }
             }
-            
+
             var leftIconSize: CGSize?
             if let titleLeftIcon {
                 let leftIcon: ComponentView<Empty>
@@ -896,7 +902,7 @@ public final class ChatTitleComponent: Component {
                     })
                 }
             }
-            
+
             let mapTitleIcon: (ChatTitleCredibilityIcon) -> EmojiStatusComponent.Content? = { value in
                 switch value {
                 case .none:
@@ -913,7 +919,7 @@ public final class ChatTitleComponent: Component {
                     return .animation(content: .customEmoji(fileId: emojiStatus.fileId), size: CGSize(width: 32.0, height: 32.0), placeholderColor: component.theme.list.mediaPlaceholderColor, themeColor: component.theme.list.itemAccentColor, loopMode: .count(2))
                 }
             }
-            
+
             var credibilityIconSize: CGSize?
             if let titleCredibilityIcon = mapTitleIcon(titleCredibilityIcon) {
                 let credibilityIcon: ComponentView<Empty>
@@ -945,7 +951,7 @@ public final class ChatTitleComponent: Component {
                     })
                 }
             }
-            
+
             var statusIconSize: CGSize?
             if let titleStatusIcon = mapTitleIcon(titleStatusIcon) {
                 let statusIcon: ComponentView<Empty>
@@ -977,7 +983,39 @@ public final class ChatTitleComponent: Component {
                     })
                 }
             }
-            
+
+            var winterGramIconSize: CGSize?
+            if titleWinterGramIcon {
+                let winterGramIcon: ComponentView<Empty>
+                if let current = self.winterGramIcon {
+                    winterGramIcon = current
+                } else {
+                    winterGramIcon = ComponentView()
+                    self.winterGramIcon = winterGramIcon
+                }
+                winterGramIconSize = winterGramIcon.update(
+                    transition: .immediate,
+                    component: AnyComponent(EmojiStatusComponent(
+                        context: component.context,
+                        animationCache: component.context.animationCache,
+                        animationRenderer: component.context.animationRenderer,
+                        content: .winterGramBadge(backplateColor: winterGramBadgeBackplateColor(theme: component.theme)),
+                        isVisibleForAnimations: true,
+                        action: nil
+                    )),
+                    environment: {},
+                    containerSize: CGSize(width: 20.0, height: 20.0)
+                )
+            } else if let winterGramIcon = self.winterGramIcon {
+                self.winterGramIcon = nil
+                if let winterGramIconView = winterGramIcon.view {
+                    transition.setScale(view: winterGramIconView, scale: 0.001)
+                    transition.setAlpha(view: winterGramIconView, alpha: 0.0, completion: { [weak winterGramIconView] _ in
+                        winterGramIconView?.removeFromSuperview()
+                    })
+                }
+            }
+
             var verifiedIconSize: CGSize?
             if let titleVerifiedIcon = mapTitleIcon(titleVerifiedIcon) {
                 let verifiedIcon: ComponentView<Empty>
@@ -1009,7 +1047,7 @@ public final class ChatTitleComponent: Component {
                     })
                 }
             }
-            
+
             let subtitleNode: ChatTitleActivityNode
             if let current = self.subtitleNode {
                 subtitleNode = current
@@ -1019,7 +1057,7 @@ public final class ChatTitleComponent: Component {
                 subtitleNode.isUserInteractionEnabled = false
                 self.contentContainer.addSubview(subtitleNode.view)
             }
-            
+
             var titleLeftIconsWidth: CGFloat = 0.0
             if let leftIconSize {
                 titleLeftIconsWidth += leftIconSize.width + leftTitleIconSpacing
@@ -1027,7 +1065,7 @@ public final class ChatTitleComponent: Component {
             if let verifiedIconSize {
                 titleLeftIconsWidth += verifiedIconSize.width + statusIconsSpacing
             }
-            
+
             var titleRightIconsWidth: CGFloat = 0.0
             if let rightIconSize {
                 titleRightIconsWidth += rightIconSize.width + rightTitleIconSpacing
@@ -1038,9 +1076,12 @@ public final class ChatTitleComponent: Component {
             if let statusIconSize {
                 titleRightIconsWidth += statusIconSize.width + statusIconsSpacing
             }
-            
+            if let winterGramIconSize {
+                titleRightIconsWidth += winterGramIconSize.width + statusIconsSpacing
+            }
+
             let maxTitleWidth = availableSize.width - titleLeftIconsWidth - titleRightIconsWidth - containerSideInset * 2.0
-            
+
             let titleSize = self.title.update(
                 transition: transition,
                 component: AnyComponent(AnimatedTextComponent(
@@ -1055,10 +1096,10 @@ public final class ChatTitleComponent: Component {
                 environment: {},
                 containerSize: CGSize(width: maxTitleWidth, height: 100.0)
             )
-            
+
             let _ = subtitleNode.transitionToState(state, animation: transition.animation.isImmediate ? .none : .slide)
             let subtitleSize = subtitleNode.updateLayout(CGSize(width: availableSize.width - containerSideInset * 2.0, height: 100.0), alignment: .center)
-            
+
             var minSubtitleWidth: CGFloat?
             let activityMeasureSubtitleNode: ChatTitleActivityNode
             if let current = self.activityMeasureSubtitleNode {
@@ -1071,7 +1112,7 @@ public final class ChatTitleComponent: Component {
             let _ = activityMeasureSubtitleNode.transitionToState(.typingText(measureTypingTextString, .black), animation: .none)
             let activityMeasureSubtitleSize = activityMeasureSubtitleNode.updateLayout(CGSize(width: availableSize.width - containerSideInset * 2.0, height: 100.0), alignment: .center)
             minSubtitleWidth = activityMeasureSubtitleSize.width
-            
+
             var contentSize = titleSize
             contentSize.width += titleLeftIconsWidth + titleRightIconsWidth
             contentSize.width = max(contentSize.width, subtitleSize.width)
@@ -1080,10 +1121,10 @@ public final class ChatTitleComponent: Component {
             }
             contentSize.width = max(min(150.0, availableSize.width - containerSideInset * 2.0), contentSize.width)
             contentSize.height += subtitleSize.height
-            
+
             let containerSize = CGSize(width: contentSize.width + containerSideInset * 2.0, height: 44.0)
             let containerFrame = CGRect(origin: CGPoint(x: 0.0, y: floorToScreenPixels((availableSize.height - containerSize.height) * 0.5)), size: containerSize)
-            
+
             let titleFrame = CGRect(origin: CGPoint(x: titleLeftIconsWidth + floor((containerFrame.width - titleSize.width - titleLeftIconsWidth - titleRightIconsWidth) * 0.5), y: floor((containerFrame.height - contentSize.height) * 0.5)), size: titleSize)
             if let titleView = self.title.view {
                 if titleView.superview == nil {
@@ -1092,13 +1133,13 @@ public final class ChatTitleComponent: Component {
                 }
                 transition.setFrame(view: titleView, frame: titleFrame)
             }
-            
+
             let subtitleFrame = CGRect(origin: CGPoint(x: floor((containerFrame.width - subtitleSize.width) * 0.5), y: titleFrame.maxY), size: subtitleSize)
             // Internally, the status view has zero width
             transition.setFrame(view: subtitleNode.view, frame: CGRect(origin: CGPoint(x: subtitleFrame.midX, y: subtitleFrame.minY), size: CGSize(width: 0.0, height: subtitleFrame.height)))
-            
+
             var nextLeftIconX: CGFloat = titleFrame.minX
-            
+
             if let leftIconSize, let leftIconView = self.leftIcon?.view {
                 let leftIconFrame = CGRect(origin: CGPoint(x: nextLeftIconX - leftTitleIconSpacing - leftIconSize.width, y: titleFrame.minY + leftTitleIconSpacing), size: leftIconSize)
                 if leftIconView.superview == nil {
@@ -1113,7 +1154,7 @@ public final class ChatTitleComponent: Component {
                 transition.setAlpha(view: leftIconView, alpha: 1.0)
                 transition.setScale(view: leftIconView, scale: 1.0)
             }
-            
+
             if let verifiedIconSize, let verifiedIconView = self.verifiedIcon?.view {
                 let verifiedIconFrame = CGRect(origin: CGPoint(x: nextLeftIconX - statusIconsSpacing - verifiedIconSize.width, y: titleFrame.minY), size: verifiedIconSize)
                 if verifiedIconView.superview == nil {
@@ -1129,9 +1170,9 @@ public final class ChatTitleComponent: Component {
                 transition.setScale(view: verifiedIconView, scale: 1.0)
                 nextLeftIconX -= statusIconsSpacing + verifiedIconSize.width
             }
-            
+
             var nextRightIconX: CGFloat = titleFrame.maxX
-            
+
             if let credibilityIconSize, let credibilityIconView = self.credibilityIcon?.view {
                 let credibilityIconFrame = CGRect(origin: CGPoint(x: nextRightIconX + statusIconsSpacing, y: titleFrame.minY), size: credibilityIconSize)
                 if credibilityIconView.superview == nil {
@@ -1147,7 +1188,7 @@ public final class ChatTitleComponent: Component {
                 transition.setScale(view: credibilityIconView, scale: 1.0)
                 nextRightIconX += statusIconsSpacing + credibilityIconSize.width
             }
-            
+
             if let statusIconSize, let statusIconView = self.statusIcon?.view {
                 let statusIconFrame = CGRect(origin: CGPoint(x: nextRightIconX + statusIconsSpacing, y: titleFrame.minY), size: statusIconSize)
                 if statusIconView.superview == nil {
@@ -1163,7 +1204,23 @@ public final class ChatTitleComponent: Component {
                 transition.setScale(view: statusIconView, scale: 1.0)
                 nextRightIconX += statusIconsSpacing + statusIconSize.width
             }
-            
+
+            if let winterGramIconSize, let winterGramIconView = self.winterGramIcon?.view {
+                let winterGramIconFrame = CGRect(origin: CGPoint(x: nextRightIconX + statusIconsSpacing, y: titleFrame.minY), size: winterGramIconSize)
+                if winterGramIconView.superview == nil {
+                    winterGramIconView.isUserInteractionEnabled = false
+                    self.contentContainer.addSubview(winterGramIconView)
+                    winterGramIconView.frame = winterGramIconFrame
+                    ComponentTransition.immediate.setScale(view: winterGramIconView, scale: 0.001)
+                    winterGramIconView.alpha = 0.0
+                }
+                transition.setPosition(view: winterGramIconView, position: winterGramIconFrame.center)
+                transition.setBounds(view: winterGramIconView, bounds: CGRect(origin: CGPoint(), size: winterGramIconFrame.size))
+                transition.setAlpha(view: winterGramIconView, alpha: 1.0)
+                transition.setScale(view: winterGramIconView, scale: 1.0)
+                nextRightIconX += statusIconsSpacing + winterGramIconSize.width
+            }
+
             if let rightIconSize, let rightIconView = self.rightIcon?.view {
                 let rightIconFrame = CGRect(origin: CGPoint(x: nextRightIconX + rightTitleIconSpacing, y: titleFrame.minY + 5.0), size: rightIconSize)
                 if rightIconView.superview == nil {
@@ -1179,7 +1236,7 @@ public final class ChatTitleComponent: Component {
                 transition.setScale(view: rightIconView, scale: 1.0)
                 nextRightIconX += rightTitleIconSpacing + rightIconSize.width
             }
-            
+
             if component.displayBackground {
                 let backgroundView: GlassBackgroundView
                 if let current = self.backgroundView {
@@ -1205,15 +1262,15 @@ public final class ChatTitleComponent: Component {
                 transition.setFrame(view: self.contentContainer, frame: containerFrame)
                 self.contentContainer.layer.cornerRadius = 0.0
             }
-            
+
             return CGSize(width: containerSize.width, height: availableSize.height)
         }
     }
-    
+
     public func makeView() -> View {
         return View(frame: CGRect())
     }
-    
+
     public func update(view: View, availableSize: CGSize, state: EmptyComponentState, environment: Environment<Empty>, transition: ComponentTransition) -> CGSize {
         return view.update(component: self, availableSize: availableSize, state: state, environment: environment, transition: transition)
     }

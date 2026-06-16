@@ -1,86 +1,111 @@
 # WinterGram — feature → implementation map
 
-This document maps every WinterGram option to where it is (or needs to be) wired into the
-Telegram-iOS codebase. The settings themselves live in a single store:
+> Developer reference. User-facing overview: [`docs/FEATURES.md`](FEATURES.md).
+
+This document maps every WinterGram option to where it is wired into the
+codebase. The settings themselves live in a single store:
 
 - `submodules/TelegramUIPreferences/Sources/WinterGramSettings.swift` — the `WinterGramSettings`
   `Codable` struct, its sub-structs (`WinterGramLiquidGlass`) and enums, plus
-  `updateWinterGramSettingsInteractively(...)` and `winterGramSettings(accountManager:)`.
+  `updateWinterGramSettingsInteractively(...)`, `winterGramSettings(accountManager:)`, and the
+  synchronous snapshot `currentWinterGramSettings` (kept fresh by
+  `observeWinterGramSettings(accountManager:)`, started from `AppDelegate`).
 - `submodules/TelegramUIPreferences/Sources/PostboxKeys.swift` — the shared-data key
   `ApplicationSpecificSharedDataKeys.winterGramSettings` (value `23`).
+- `submodules/TelegramCore/Sources/WinterGram/WinterGramCoreSettings.swift` — a minimal
+  mirror for hooks inside `TelegramCore` (which cannot import `TelegramUIPreferences`);
+  fed by the same observer.
 
 Read the store anywhere that already has an `AccountContext` / `AccountManager` via
-`winterGramSettings(accountManager:)`, and write it via `updateWinterGramSettingsInteractively`.
+`winterGramSettings(accountManager:)` (reactive) or `currentWinterGramSettings` (sync),
+and write it via `updateWinterGramSettingsInteractively`.
 
 ## Status legend
 
-- **Store** — the setting exists and persists (done in this repo).
-- **Hook** — the place in the app where behavior must read the setting.
+- ✅ — setting persists and the behavior hook is in place.
+- ⏳ — setting persists, behavior not fully hooked yet.
 
 ## Privacy & Ghost Mode
 
-| Setting | Hook |
-| :-- | :-- |
-| `ghostModeEnabled` | Master switch read by the read-receipt / online-status / typing senders below. |
-| `sendReadReceipts` | `TelegramCore` history read — gate `_internal_applyMaxReadIndex` / outgoing `messages.readHistory` calls. |
-| `sendReadStories` | Story view reporting — gate `markStoryAsSeen` network calls. |
-| `sendOnlineStatus` | Online presence — gate `account.updatePresence` / `updateStatus`. |
-| `sendUploadProgress` | Typing/upload activity — gate `ChatActivity` / `setTyping` reporting. |
-| `sendOfflineAfterOnline` | Emit a one-shot offline presence packet after the app goes online. |
-| `markReadAfterAction` | After replying/reacting, locally mark the chat read without sending receipts. |
-| `useScheduledMessages` | "Отложка" — when ghosting, send via the scheduled-messages path. |
-| `sendWithoutSound` | Outgoing message flags — set `silent` per `shouldSendWithoutSound`. |
-| `suggestGhostBeforeStory` | Story viewer — present the ghost confirmation before opening. |
+| Setting | Status | Hook |
+| :-- | :-- | :-- |
+| `ghostModeEnabled` | ✅ | Master switch read by the gates below. |
+| `sendReadReceipts` | ✅ | `AccountContext.applyMaxReadIndex` (`submodules/TelegramUI/Sources/AccountContext.swift`) returns early in ghost mode. |
+| `sendReadStories` | ✅ | All four `markAsSeen` implementations in `StoryChatContent.swift` return early in ghost mode. |
+| `sendOnlineStatus` | ✅ | `SharedWakeupManager` forces `shouldKeepOnlinePresence` to false in ghost mode. |
+| `sendUploadProgress` | ✅ | Typing-activity subscription in `ChatController.swift` skips `updateLocalInputActivity` in ghost mode. |
+| `sendOfflineAfterOnline` | ⏳ | Emit a one-shot offline presence packet after going online. |
+| `markReadAfterAction` | ⏳ | After replying/reacting, locally mark read without sending receipts. |
+| `useScheduledMessages` | ✅ | "Отложка": `transformEnqueueMessages` in `ChatController.swift` routes ghost-mode sends through the scheduled path (now + 12 s) so sending doesn't mark the chat read. |
+| `sendWithoutSound` | ✅ | `transformEnqueueMessages` computes `effectiveSilentPosting` from never / in-ghost / always. |
+| `suggestGhostBeforeStory` | ⏳ | Story viewer — present the ghost confirmation before opening. |
 
 ## History & Recovery
 
-| Setting | Hook |
-| :-- | :-- |
-| `saveDeletedMessages` | Hook the deletion path in `Postbox` history removal; mirror messages into a local store before they are purged. |
-| `saveMessagesHistory` | On `EditMessage` updates, append the previous version to a local edit-history store. |
-| `semiTransparentDeletedMessages` | `ChatMessageItemView` — render saved-deleted bubbles at reduced alpha. |
-| `deletedMark` / `editedMark` | Message footer rendering in the bubble content nodes. |
+| Setting | Status | Hook |
+| :-- | :-- | :-- |
+| `saveDeletedMessages` | ✅ | Remote deletions (`.DeleteMessages` / `.DeleteMessagesWithGlobalIds`) skipped in `AccountStateManagementUtils.swift` via `currentWinterGramCoreSettings`. |
+| `saveMessagesHistory` | ✅ | On remote `.EditMessage`, the previous text/entities/timestamp are appended to `WinterGramEditHistoryAttribute` (`submodules/TelegramCore/Sources/WinterGram/`); registered in `AccountManager.swift`. Viewing UI: ⏳. |
+| `semiTransparentDeletedMessages` | ⏳ | Render kept-deleted bubbles at reduced alpha. |
 
-## Hidden Archive ("AАrchive")
+## Hidden Archive ("ААрхив")
 
-| Setting | Hook |
-| :-- | :-- |
-| `stashedPeerIds` | Filter the chat list to hide these peers from the main list; show them only in the dedicated WinterGram archive screen. |
-| `stashMuteNotifications` | Notification service extension — suppress notifications for stashed peers. |
-| `stashAutoMarkRead` | On receiving from a stashed peer, locally mark read (respecting Ghost Mode). |
+| Setting | Status | Hook |
+| :-- | :-- | :-- |
+| `stashedPeerIds` | ✅ | Hidden from the main tab in `ChatListNodeEntries.swift`; stash/unstash via chat-list context menu (`ChatContextMenus.swift`); browse via Settings → WinterGram → Stashed Chats (`WinterGramStashController.swift`). |
+| `stashMuteNotifications` | ✅ | In-app notification pipeline in `ApplicationContext.swift` drops banners for stashed peers. (APNs pushes need the NotificationService extension: ⏳.) |
+| `stashAutoMarkRead` | ✅ | Same pipeline calls `applyMaxReadIndexInteractively` for stashed peers. |
 
 ## Anti-Features
 
-| Setting | Hook |
-| :-- | :-- |
-| `disableAds` | Sponsored-messages fetch in `TelegramCore` (`getAdMessages`) — return empty when disabled. |
-| `localPremium` | `isPremium` resolution in the UI layer — treat as Premium locally for gated UI. |
-| `shadowBanIds` | Chat history filtering — drop incoming messages from these peers from the rendered list. |
-| `disableStories` | Story list assembly — hide the stories strip. |
-| `hidePremiumStatuses` | Peer title rendering — drop Premium/emoji-status badges. |
-| `disableOpenLinkWarning` | URL open path — skip the "open this link?" confirmation. |
+| Setting | Status | Hook |
+| :-- | :-- | :-- |
+| `disableAds` | ✅ | Ad insertion gate in `ChatHistoryEntriesForView.swift`. |
+| `localPremium` | ✅ | `isPremium` resolution in `submodules/TelegramUI/Sources/AccountContext.swift`. |
+| `shadowBanIds` | ✅ | Entry filter by author in `ChatHistoryEntriesForView.swift`. |
+| `disableStories` | ✅ | `shouldDisplayStoriesInChatListHeader` in `ChatListControllerNode.swift` returns false. |
+| `hidePremiumStatuses` | ✅ | `ChatTitleView` / `ChatTitleComponent` / `ChatListItem` / `ItemListPeerItem`. |
+| `disableOpenLinkWarning` | ✅ | Concealed-link alert gate in `OpenUserGeneratedUrl.swift`. |
+
+## In-app purchases
+
+Fully disabled: `InAppPurchaseManager.buyProduct` fails immediately with `.cantMakePayments`
+(every purchase screen maps that to a localized error), and `PremiumIntroScreen.buy()` shows a
+"subscribe via the official Telegram app" alert before reaching the manager. Redeeming gift
+codes still works (not an IAP).
 
 ## Chat Conveniences
 
-| Setting | Hook |
-| :-- | :-- |
-| `stickerConfirmation` / `gifConfirmation` / `voiceConfirmation` | Send paths in the chat input panel — present a confirm alert before sending. |
-| `showMessageSeconds` | Timestamp formatting in the bubble footer. |
-| `showPeerId` | Peer info / chat title — append the ID in Telegram or Bot API form. |
-| `translateMessages` / `translationProvider` | Message context menu translate action + provider selection. |
-| `webviewSpoofPlatform` / `increaseWebviewHeight` | WebApp controller — set the spoofed `tg_platform` / viewport height. |
+| Setting | Status | Hook |
+| :-- | :-- | :-- |
+| `stickerConfirmation` / `gifConfirmation` | ✅ | `ChatController.swift` send paths. |
+| `voiceConfirmation` | ✅ | `ChatControllerMediaRecording.swift`. |
+| `showMessageSeconds` | ✅ | `StringForMessageTimestampStatus.swift`. |
+| `showPeerId` | ✅ | ID row (long-press copies) in `PeerInfoProfileItems.swift` for users and channels/groups, honoring Telegram/Bot-API format. |
+| `translateMessages` / `translationProvider` | ⏳ | Message context-menu translate + provider. |
+| `webviewSpoofPlatform` | ✅ | `BotWebView.swift` in TelegramCore reads `currentWinterGramCoreSettings.webviewPlatform` (ios / android / macos / tdesktop), fed by the settings observer. |
+| `increaseWebviewHeight` | ⏳ | WebApp controller viewport. |
 
 ## Appearance & Customization
 
-| Setting | Hook |
-| :-- | :-- |
-| `liquidGlass.*` | `Display` blur/material layers behind the chat list, nav bar, and tab bar; read `enabled`, `transparency`, `blurRadius`, `tintColor`, per-surface flags. |
-| `materialDesign` | Switch/control styling in `ItemListUI` components. |
-| `avatarCornerRadius` / `singleCornerRadius` | Avatar node corner rounding in `AvatarNode`. |
-| `messageBubbleRadius` / `removeMessageTail` | Bubble background drawing in the chat message backgrounds. |
-| `customFont` / `monoFont` | `PresentationData` font resolution. |
-| `appIcon` / `iconPack` | Alternate-icon switching via `UIApplication.setAlternateIconName`; see `Telegram/Telegram-iOS/DefaultAppIcon.xcassets/WinterGramDarkIcon.appiconset`. |
-| `showOnlyAddedEmojisAndStickers` | Emoji/sticker panel data sources — filter to installed packs. |
+| Setting | Status | Hook |
+| :-- | :-- | :-- |
+| `liquidGlass.*` | ⏳ | Blur/material layers behind chat list, nav bar, tab bar. |
+| `materialDesign` | ⏳ | Switch/control styling. |
+| `avatarCornerRadius` / `singleCornerRadius` | ⏳ | `AvatarNode` corner rounding. Note: photos are circle-clipped inside the bitmap (`PeerAvatar.swift` `roundCorners` mask), so a real implementation must touch every render path, not just `imageNode.cornerRadius`. |
+| `messageBubbleRadius` / `removeMessageTail` | ⏳ | Bubble background drawing. |
+| `customFont` / `monoFont` | ⏳ | `PresentationData` font resolution. |
+| `appIcon` / `iconPack` | ⏳ | Alternate-icon switching; assets in `DefaultAppIcon.xcassets/WinterGramDarkIcon.appiconset`. |
+| `showOnlyAddedEmojisAndStickers` | ⏳ | Emoji/sticker panel data sources. |
+
+## Accounts
+
+- Unlimited accounts: `maximumNumberOfAccounts` / `maximumPremiumNumberOfAccounts` = 100 in
+  `submodules/AccountUtils/Sources/AccountUtils.swift`; the add-account flow in
+  `PeerInfoScreenSettingsActions.swift` uses the same constants.
+- Account data is included in iCloud/iTunes device backups (`isExcludedFromBackup = false` in
+  `TelegramCore/Sources/Account/AccountManager.swift`). Tradeoff: session auth keys become part
+  of the backup.
 
 ## Deep links — `wnt://`
 
@@ -90,7 +115,7 @@ Normalized to `tg://` at the app entry by `normalizeWinterGramUrlScheme(_:)` in
 
 ## Settings UI
 
-A dedicated **WinterGram** entry should be added to the settings list
-(`submodules/SettingsUI` / the PeerInfo settings screen) that opens an `ItemListController`
-backed by `winterGramSettings(accountManager:)` and writing through
-`updateWinterGramSettingsInteractively`. Group the rows by the sections above.
+The **WinterGram** entry is the first row of Settings (snowball icon,
+`PresentationResourcesSettings.winterGram`), opening
+`submodules/SettingsUI/Sources/WinterGramSettingsController.swift`. The Hidden Archive browser
+lives in `WinterGramStashController.swift` next to it.

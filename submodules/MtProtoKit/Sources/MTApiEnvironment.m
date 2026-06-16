@@ -27,7 +27,7 @@ static NSData * _Nullable parseHexString(NSString * _Nonnull hex) {
             return nil;
         }
     }
-    
+
     return [NSData dataWithBytesNoCopy:bytes length:[hex length]/2 freeWhenDone:YES];
 }
 
@@ -36,14 +36,14 @@ static NSString * _Nonnull dataToHexString(NSData * _Nonnull data) {
     if (dataBuffer == NULL) {
         return @"";
     }
-    
+
     NSUInteger dataLength  = [data length];
     NSMutableString *hexString  = [NSMutableString stringWithCapacity:(dataLength * 2)];
-    
+
     for (int i = 0; i < (int)dataLength; ++i) {
         [hexString appendString:[NSString stringWithFormat:@"%02lx", (unsigned long)dataBuffer[i]]];
     }
-    
+
     return hexString;
 }
 
@@ -91,7 +91,7 @@ static NSData *base64_decode(NSString *str) {
         while (finalString.length % 4 != 0) {
             finalString = [finalString stringByAppendingString:@"="];
         }
-        
+
         hexData = base64_decode(finalString);
     }
     if (hexData != nil) {
@@ -105,10 +105,10 @@ static NSData *base64_decode(NSString *str) {
     if (data == nil || data.length < 16) {
         return nil;
     }
-    
+
     uint8_t firstByte = 0;
     [data getBytes:&firstByte length:1];
-    
+
     if (data.length == 16) {
         return [[MTProxySecretType0 alloc] initWithSecret:data];
     } else if (data.length == 17) {
@@ -359,7 +359,7 @@ static NSData *base64_decode(NSString *str) {
     self = [self initWithDeviceModelName:nil];
     if (self != nil)
     {
-        
+
     }
     return self;
 }
@@ -380,7 +380,7 @@ static NSData *base64_decode(NSString *str) {
         NSProcessInfo *pInfo = [NSProcessInfo processInfo];
         _systemVersion = [[[pInfo operatingSystemVersionString] componentsSeparatedByString:@" "] objectAtIndex:1];
 #endif
-        
+
 NSString *suffix = @"";
 #if TARGET_OS_OSX
         NSString *value = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"SOURCE"];
@@ -388,11 +388,16 @@ NSString *suffix = @"";
             suffix = [NSString stringWithFormat:@"%@", value];
         }
 #endif
-        
+
         //SOURCE
         NSString *versionString = [[NSString alloc] initWithFormat:@"%@ (%@) %@", [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"], [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleVersion"], suffix];
+        // WinterGram: session app-version spoof (bridged from settings via UserDefaults, restart-applied).
+        NSString *wntSpoofAppVersion = [[NSUserDefaults standardUserDefaults] stringForKey:@"wnt_spoofAppVersion"];
+        if (wntSpoofAppVersion != nil && wntSpoofAppVersion.length != 0) {
+            versionString = wntSpoofAppVersion;
+        }
         _appVersion = versionString;
-        
+
         _systemLangCode = [[NSLocale preferredLanguages] objectAtIndex:0];
     #if TARGET_OS_OSX
         _langPack = @"macos";
@@ -400,7 +405,7 @@ NSString *suffix = @"";
          _langPack = @"ios";
     #endif
         _langPackCode = @"";
-        
+
         [self _updateApiInitializationHash];
     }
     return self;
@@ -412,25 +417,25 @@ NSString *suffix = @"";
 
 - (void)setLayer:(NSNumber *)layer {
     _layer = layer;
-    
+
     [self _updateApiInitializationHash];
 }
 
 - (void)setAppVersion:(NSString *)appVersion {
     _appVersion = appVersion;
-    
+
     [self _updateApiInitializationHash];
 }
 
 - (void)setLangPack:(NSString *)langPack {
     _langPack = langPack;
-    
+
     [self _updateApiInitializationHash];
 }
 
 - (void)setLangPackCode:(NSString *)langPackCode {
     _langPackCode = langPackCode;
-    
+
     [self _updateApiInitializationHash];
 }
 
@@ -438,7 +443,7 @@ NSString *suffix = @"";
 {
 #if TARGET_OS_IPHONE
     NSString *platform = [self platform];
-    
+
     if ([platform isEqualToString:@"iPhone1,1"])
         return @"iPhone";
     if ([platform isEqualToString:@"iPhone1,2"])
@@ -549,7 +554,7 @@ NSString *suffix = @"";
         return @"iPhone 17 Pro Max";
     if ([platform isEqualToString:@"iPhone18,4"])
         return @"iPhone Air";
-        
+
     if ([platform hasPrefix:@"iPod1"])
         return @"iPod touch 1G";
     if ([platform hasPrefix:@"iPod2"])
@@ -564,204 +569,204 @@ NSString *suffix = @"";
         return @"iPod touch 6G";
     if ([platform hasPrefix:@"iPod9"])
         return @"iPod touch 7G";
-    
+
     if ([platform isEqualToString:@"iPad2,5"] ||
         [platform isEqualToString:@"iPad2,6"] ||
         [platform isEqualToString:@"iPad2,7"])
         return @"iPad mini";
-    
+
     if ([platform hasPrefix:@"iPad2"])
         return @"iPad 2G";
-    
+
     if ([platform isEqualToString:@"iPad3,1"] ||
         [platform isEqualToString:@"iPad3,2"] ||
         [platform isEqualToString:@"iPad3,3"])
         return @"iPad 3G";
-    
+
     if ([platform isEqualToString:@"iPad3,4"] ||
         [platform isEqualToString:@"iPad3,5"] ||
         [platform isEqualToString:@"iPad3,6"])
         return @"iPad 3G";
-    
+
     if ([platform isEqualToString:@"iPad4,1"] ||
         [platform isEqualToString:@"iPad4,2"])
         return @"iPad Air";
-        
+
     if ([platform isEqualToString:@"iPad4,4"] ||
         [platform isEqualToString:@"iPad4,5"] ||
         [platform isEqualToString:@"iPad4,6"])
         return @"iPad mini Retina";
-    
+
     if ([platform isEqualToString:@"iPad4,7"] ||
         [platform isEqualToString:@"iPad4,8"] ||
         [platform isEqualToString:@"iPad4,9"])
         return @"iPad mini 3";
-    
+
     if ([platform isEqualToString:@"iPad5,1"] ||
         [platform isEqualToString:@"iPad5,2"])
         return @"iPad mini 4";
-    
+
     if ([platform isEqualToString:@"iPad5,3"] ||
         [platform isEqualToString:@"iPad5,4"])
         return @"iPad Air 2";
-    
+
     if ([platform isEqualToString:@"iPad6,3"] ||
         [platform isEqualToString:@"iPad6,4"])
         return @"iPad Pro 9.7 inch";
-    
+
     if ([platform isEqualToString:@"iPad6,7"] ||
         [platform isEqualToString:@"iPad6,8"])
         return @"iPad Pro 12.9 inch";
-    
+
     if ([platform isEqualToString:@"iPad6,11"] ||
         [platform isEqualToString:@"iPad6,12"])
         return @"iPad (2017)";
-    
+
     if ([platform isEqualToString:@"iPad7,1"] ||
         [platform isEqualToString:@"iPad7,2"])
         return @"iPad Pro (2nd gen)";
-    
+
     if ([platform isEqualToString:@"iPad7,3"] ||
         [platform isEqualToString:@"iPad7,4"])
         return @"iPad Pro 10.5 inch";
-    
+
     if ([platform isEqualToString:@"iPad7,5"] ||
         [platform isEqualToString:@"iPad7,6"])
         return @"iPad (6th gen)";
-    
+
     if ([platform isEqualToString:@"iPad7,11"] ||
         [platform isEqualToString:@"iPad7,12"])
         return @"iPad 10.2 inch (7th gen)";
-    
+
     if ([platform isEqualToString:@"iPad8,1"] ||
         [platform isEqualToString:@"iPad8,2"] ||
         [platform isEqualToString:@"iPad8,3"] ||
         [platform isEqualToString:@"iPad8,4"])
         return @"iPad Pro 11 inch";
-    
+
     if ([platform isEqualToString:@"iPad8,5"] ||
         [platform isEqualToString:@"iPad8,6"] ||
         [platform isEqualToString:@"iPad8,7"] ||
         [platform isEqualToString:@"iPad8,8"])
         return @"iPad Pro 12.9 inch (3rd gen)";
-    
+
     if ([platform isEqualToString:@"iPad8,9"] ||
         [platform isEqualToString:@"iPad8,10"])
         return @"iPad Pro 11 inch (2th gen)";
-    
+
     if ([platform isEqualToString:@"iPad8,11"] ||
         [platform isEqualToString:@"iPad8,12"])
         return @"iPad Pro 12.9 inch (4th gen)";
-    
+
     if ([platform isEqualToString:@"iPad11,1"] ||
         [platform isEqualToString:@"iPad11,2"])
         return @"iPad mini (5th gen)";
-    
+
     if ([platform isEqualToString:@"iPad11,3"] ||
         [platform isEqualToString:@"iPad11,4"])
         return @"iPad Air (3rd gen)";
-    
+
     if ([platform isEqualToString:@"iPad11,6"] ||
         [platform isEqualToString:@"iPad11,7"])
         return @"iPad (8th gen)";
-    
+
     if ([platform isEqualToString:@"iPad12,1"] ||
         [platform isEqualToString:@"iPad12,2"])
         return @"iPad (9th gen)";
-    
+
     if ([platform isEqualToString:@"iPad13,1"] ||
         [platform isEqualToString:@"iPad13,2"])
         return @"iPad Air (4th gen)";
-    
+
     if ([platform isEqualToString:@"iPad13,4"] ||
         [platform isEqualToString:@"iPad13,5"] ||
         [platform isEqualToString:@"iPad13,6"] ||
         [platform isEqualToString:@"iPad13,7"])
         return @"iPad Pro 11 inch (3th gen)";
-    
+
     if ([platform isEqualToString:@"iPad13,8"] ||
         [platform isEqualToString:@"iPad13,9"] ||
         [platform isEqualToString:@"iPad13,10"] ||
         [platform isEqualToString:@"iPad13,11"])
         return @"iPad Pro 12.9 inch (5th gen)";
-    
+
     if ([platform isEqualToString:@"iPad13,16"] ||
         [platform isEqualToString:@"iPad13,17"])
         return @"iPad Air (5th gen)";
-    
+
     if ([platform isEqualToString:@"iPad13,18"] ||
         [platform isEqualToString:@"iPad13,19"])
         return @"iPad (10th gen)";
-    
+
     if ([platform isEqualToString:@"iPad14,1"] ||
         [platform isEqualToString:@"iPad14,2"])
         return @"iPad mini (6th gen)";
-    
+
     if ([platform isEqualToString:@"iPad14,3"] ||
         [platform isEqualToString:@"iPad14,4"])
         return @"iPad Pro 11 inch (4th gen)";
-    
+
     if ([platform isEqualToString:@"iPad14,5"] ||
         [platform isEqualToString:@"iPad14,6"])
         return @"iPad Pro 12.9 inch (6th gen)";
-    
+
     if ([platform isEqualToString:@"iPad14,8"] ||
         [platform isEqualToString:@"iPad14,9"])
         return @"iPad Air (6th gen)";
-    
+
     if ([platform isEqualToString:@"iPad14,10"] ||
         [platform isEqualToString:@"iPad14,11"])
         return @"iPad Air (7th gen)";
-    
+
     if ([platform isEqualToString:@"iPad15,3"] ||
         [platform isEqualToString:@"iPad15,4"])
         return @"iPad Air 11 inch (7th gen)";
-    
+
     if ([platform isEqualToString:@"iPad15,5"] ||
         [platform isEqualToString:@"iPad15,6"])
         return @"iPad Air 13 inch (7th gen)";
-    
+
     if ([platform isEqualToString:@"iPad15,7"] ||
         [platform isEqualToString:@"iPad15,8"])
         return @"iPad (11th gen)";
-    
+
     if ([platform isEqualToString:@"iPad16,1"] ||
         [platform isEqualToString:@"iPad16,2"])
         return @"iPad mini (7th gen)";
-    
+
     if ([platform isEqualToString:@"iPad16,3"] ||
         [platform isEqualToString:@"iPad16,4"])
         return @"iPad Pro 11 inch (5th gen)";
-    
+
     if ([platform isEqualToString:@"iPad16,5"] ||
         [platform isEqualToString:@"iPad16,6"])
         return @"iPad Pro 12.9 inch (7th gen)";
-    
+
     if ([platform isEqualToString:@"iPad16,8"] ||
         [platform isEqualToString:@"iPad16,9"])
         return @"iPad Air 11 inch (8th gen)";
-    
+
     if ([platform isEqualToString:@"iPad16,10"] ||
         [platform isEqualToString:@"iPad16,11"])
         return @"iPad Air 13 inch (8th gen)";
-        
+
     if ([platform hasPrefix:@"iPhone"])
         return @"Unknown iPhone";
     if ([platform hasPrefix:@"iPod"])
         return @"Unknown iPod";
     if ([platform hasPrefix:@"iPad"])
         return @"Unknown iPad";
-    
+
     if ([platform hasSuffix:@"86"] || [platform isEqual:@"x86_64"] || [platform isEqual:@"arm64"]) {
         return @"iPhone Simulator";
     }
 #else
     return [self macHWName];
 #endif
-    
+
     return @"Unknown iOS device";
 }
-    
+
 - (NSString *)macHWName {
     size_t len = 0;
     sysctlbyname("hw.model", NULL, &len, NULL, 0);
@@ -779,12 +784,12 @@ NSString *suffix = @"";
 {
     size_t size;
     sysctlbyname(typeSpecifier, NULL, &size, NULL, 0);
-    
+
     char *answer = malloc(size);
     sysctlbyname(typeSpecifier, answer, &size, NULL, 0);
-    
+
     NSString *results = [NSString stringWithCString:answer encoding: NSUTF8StringEncoding];
-    
+
     free(answer);
     return results;
 }
@@ -796,15 +801,15 @@ NSString *suffix = @"";
 
 - (MTApiEnvironment *)withUpdatedLangPackCode:(NSString *)langPackCode {
     MTApiEnvironment *result = [[MTApiEnvironment alloc] initWithDeviceModelName:_deviceModelName];
-    
+
     result.apiId = self.apiId;
     result.appVersion = self.appVersion;
     result.layer = self.layer;
-    
+
     result.langPack = self.langPack;
-    
+
     result->_langPackCode = langPackCode;
-    
+
     result.disableUpdates = self.disableUpdates;
     result.tcpPayloadPrefix = self.tcpPayloadPrefix;
     result.datacenterAddressOverrides = self.datacenterAddressOverrides;
@@ -812,105 +817,105 @@ NSString *suffix = @"";
     result->_socksProxySettings = self.socksProxySettings;
     result->_networkSettings = self.networkSettings;
     result->_systemCode = self.systemCode;
-    
+
     [result _updateApiInitializationHash];
-    
+
     return result;
 }
 
 - (instancetype)copyWithZone:(NSZone *)__unused zone {
     MTApiEnvironment *result =  [[MTApiEnvironment alloc] initWithDeviceModelName:_deviceModelName];
-    
+
     result.apiId = self.apiId;
     result.appVersion = self.appVersion;
     result.layer = self.layer;
-    
+
     result.langPack = self.langPack;
-    
+
     result->_langPackCode = self.langPackCode;
     result->_socksProxySettings = self.socksProxySettings;
     result->_networkSettings = self.networkSettings;
     result->_systemCode = self.systemCode;
-    
+
     result.disableUpdates = self.disableUpdates;
     result.tcpPayloadPrefix = self.tcpPayloadPrefix;
     result.datacenterAddressOverrides = self.datacenterAddressOverrides;
     result.accessHostOverride = self.accessHostOverride;
-    
+
     [result _updateApiInitializationHash];
-    
+
     return result;
 }
 
 - (MTApiEnvironment *)withUpdatedSocksProxySettings:(MTSocksProxySettings *)socksProxySettings {
     MTApiEnvironment *result =  [[MTApiEnvironment alloc] initWithDeviceModelName:_deviceModelName];
-    
+
     result.apiId = self.apiId;
     result.appVersion = self.appVersion;
     result.layer = self.layer;
-    
+
     result.langPack = self.langPack;
-    
+
     result->_langPackCode = self.langPackCode;
     result->_socksProxySettings = socksProxySettings;
     result->_networkSettings = self.networkSettings;
     result->_systemCode = self.systemCode;
-    
+
     result.disableUpdates = self.disableUpdates;
     result.tcpPayloadPrefix = self.tcpPayloadPrefix;
     result.datacenterAddressOverrides = self.datacenterAddressOverrides;
     result.accessHostOverride = self.accessHostOverride;
-    
+
     [result _updateApiInitializationHash];
-    
+
     return result;
 }
 
 - (MTApiEnvironment *)withUpdatedNetworkSettings:(MTNetworkSettings *)networkSettings {
     MTApiEnvironment *result =  [[MTApiEnvironment alloc] initWithDeviceModelName:_deviceModelName];
-    
+
     result.apiId = self.apiId;
     result.appVersion = self.appVersion;
     result.layer = self.layer;
-    
+
     result.langPack = self.langPack;
-    
+
     result->_langPackCode = self.langPackCode;
     result->_socksProxySettings = self.socksProxySettings;
     result->_networkSettings = networkSettings;
     result->_systemCode = self.systemCode;
-    
+
     result.disableUpdates = self.disableUpdates;
     result.tcpPayloadPrefix = self.tcpPayloadPrefix;
     result.datacenterAddressOverrides = self.datacenterAddressOverrides;
     result.accessHostOverride = self.accessHostOverride;
-    
+
     [result _updateApiInitializationHash];
-    
+
     return result;
 }
 
 - (MTApiEnvironment *)withUpdatedSystemCode:(NSData *)systemCode {
     MTApiEnvironment *result =  [[MTApiEnvironment alloc] initWithDeviceModelName:_deviceModelName];
-    
+
     result.apiId = self.apiId;
     result.appVersion = self.appVersion;
     result.layer = self.layer;
-    
+
     result.langPack = self.langPack;
-    
+
     result->_langPackCode = self.langPackCode;
     result->_socksProxySettings = self.socksProxySettings;
     result->_networkSettings = self.networkSettings;
     result->_systemCode = systemCode;
-    
+
     result.disableUpdates = self.disableUpdates;
     result.tcpPayloadPrefix = self.tcpPayloadPrefix;
     result.datacenterAddressOverrides = self.datacenterAddressOverrides;
     result.accessHostOverride = self.accessHostOverride;
-    
+
     [result _updateApiInitializationHash];
-    
+
     return result;
 }
 

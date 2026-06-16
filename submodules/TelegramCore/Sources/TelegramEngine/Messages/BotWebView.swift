@@ -5,10 +5,14 @@ import TelegramApi
 import MtProtoKit
 
 #if os(macOS)
-private let botWebViewPlatform = "macos"
+private let defaultBotWebViewPlatform = "macos"
 #else
-private let botWebViewPlatform = "ios"
+private let defaultBotWebViewPlatform = "ios"
 #endif
+
+private var botWebViewPlatform: String {
+    return currentWinterGramCoreSettings.webviewPlatform ?? defaultBotWebViewPlatform
+}
 
 public enum RequestSimpleWebViewSource : Equatable {
     case generic
@@ -30,9 +34,9 @@ func _internal_requestSimpleWebView(postbox: Postbox, network: Network, botId: P
         if let _ = serializedThemeParams {
             flags |= (1 << 0)
         }
-        
+
         var startParam: String? = nil
-        
+
         switch source {
         case let .inline(_startParam):
             startParam = _startParam
@@ -89,7 +93,7 @@ func _internal_requestMainWebView(postbox: Postbox, network: Network, peerId: Pe
             flags |= (1 << 0)
         }
         var startParam: String? = nil
-        
+
         switch source {
         case let .inline(_startParam):
             startParam = _startParam
@@ -132,20 +136,20 @@ public enum KeepWebViewError {
 public struct RequestWebViewResult {
     public struct Flags: OptionSet {
         public var rawValue: Int32
-        
+
         public init(rawValue: Int32) {
             self.rawValue = rawValue
         }
-        
+
         public init() {
             self.rawValue = 0
         }
-        
+
         public static let fullSize = Flags(rawValue: 1 << 0)
         public static let fullScreen = Flags(rawValue: 1 << 1)
         public static let sameOrigin = Flags(rawValue: 1 << 2)
     }
-    
+
     public let flags: Flags
     public let queryId: Int64?
     public let url: String
@@ -183,7 +187,7 @@ private func keepWebViewSignal(network: Network, stateManager: AccountStateManag
                 return .generic
             }
             |> ignoreValues
-            
+
             return signal.start(error: { error in
                 subscriber.putError(error)
             }, completed: {
@@ -196,11 +200,11 @@ private func keepWebViewSignal(network: Network, stateManager: AccountStateManag
             |> then (poll)
         )
         |> restart
-        
+
         let pollDisposable = keepAliveSignal.start(error: { error in
             subscriber.putError(error)
         })
-        
+
         let dismissDisposable = (stateManager.dismissBotWebViews
         |> filter {
             $0.contains(queryId)
@@ -208,7 +212,7 @@ private func keepWebViewSignal(network: Network, stateManager: AccountStateManag
         |> take(1)).start(completed: {
             subscriber.putCompletion()
         })
-        
+
         let disposableSet = DisposableSet()
         disposableSet.add(pollDisposable)
         disposableSet.add(dismissDisposable)
@@ -222,7 +226,7 @@ func _internal_requestWebView(postbox: Postbox, network: Network, stateManager: 
     if let themeParams = themeParams, let data = try? JSONSerialization.data(withJSONObject: themeParams, options: []), let dataString = String(data: data, encoding: .utf8) {
         serializedThemeParams = .dataJSON(.init(data: dataString))
     }
-    
+
     return postbox.transaction { transaction -> Signal<RequestWebViewResult, RequestWebViewError> in
         guard let peer = transaction.getPeer(peerId), let inputPeer = apiInputPeer(peer), let bot = transaction.getPeer(botId), let inputBot = apiInputUser(bot) else {
             return .fail(.generic)
@@ -241,9 +245,9 @@ func _internal_requestWebView(postbox: Postbox, network: Network, stateManager: 
         if fromMenu {
             flags |= (1 << 4)
         }
-        
+
         var replyTo: Api.InputReplyTo?
-        
+
         var monoforumPeerId: Api.InputPeer?
         var topMsgId: Int32?
         if let threadId {
@@ -253,12 +257,12 @@ func _internal_requestWebView(postbox: Postbox, network: Network, stateManager: 
                 topMsgId = Int32(clamping: threadId)
             }
         }
-        
+
         if let replyToMessageId = replyToMessageId {
             flags |= (1 << 0)
-            
+
             var replyFlags: Int32 = 0
-            
+
             if monoforumPeerId != nil {
                 replyFlags |= 1 << 5
             } else if topMsgId != nil {
@@ -311,7 +315,7 @@ func _internal_sendWebViewData(postbox: Postbox, network: Network, stateManager:
         guard let bot = transaction.getPeer(botId), let inputBot = apiInputUser(bot) else {
             return .fail(.generic)
         }
-        
+
         return network.request(Api.functions.messages.sendWebViewData(bot: inputBot, randomId: Int64.random(in: Int64.min ... Int64.max), buttonText: buttonText, data: data))
         |> mapError { _ -> SendWebViewDataError in
             return .generic
@@ -331,12 +335,12 @@ func _internal_requestAppWebView(postbox: Postbox, network: Network, stateManage
     if let themeParams = themeParams, let data = try? JSONSerialization.data(withJSONObject: themeParams, options: []), let dataString = String(data: data, encoding: .utf8) {
         serializedThemeParams = .dataJSON(.init(data: dataString))
     }
-    
+
     return postbox.transaction { transaction -> Signal<RequestWebViewResult, RequestWebViewError> in
         guard let peer = transaction.getPeer(peerId), let inputPeer = apiInputPeer(peer) else {
             return .fail(.generic)
         }
-        
+
         let app: Api.InputBotApp
         switch appReference {
         case let .id(id, accessHash):
@@ -364,7 +368,7 @@ func _internal_requestAppWebView(postbox: Postbox, network: Network, stateManage
         if fullscreen {
             flags |= (1 << 8)
         }
-        
+
         return network.request(Api.functions.messages.requestAppWebView(flags: flags, peer: inputPeer, app: app, startParam: payload, themeParams: serializedThemeParams, platform: botWebViewPlatform))
         |> mapError { _ -> RequestWebViewError in
             return .generic
@@ -463,20 +467,20 @@ func _internal_invokeBotCustomMethod(postbox: Postbox, network: Network, botId: 
 
 public struct TelegramSecureBotStorageState: Codable, Equatable {
     public let uuid: String
-   
+
     public init(uuid: String) {
         self.uuid = uuid
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: StringCodingKey.self)
-        
+
         self.uuid = try container.decode(String.self, forKey: "uuid")
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: StringCodingKey.self)
-        
+
         try container.encode(self.uuid, forKey: "uuid")
     }
 }
@@ -486,7 +490,7 @@ func _internal_secureBotStorageUuid(account: Account) -> Signal<String, NoError>
         if let current = transaction.getPreferencesEntry(key: PreferencesKeys.secureBotStorageState())?.get(TelegramSecureBotStorageState.self) {
             return current.uuid
         }
-        
+
         let uuid = "\(Int64.random(in: 0 ..< .max))"
         transaction.setPreferencesEntry(key: PreferencesKeys.secureBotStorageState(), value: PreferencesEntry(TelegramSecureBotStorageState(uuid: uuid)))
         return uuid
@@ -499,18 +503,18 @@ public struct TelegramBotStorageState: Codable, Equatable {
         var key: String
         var value: String
     }
-    
+
     public var data: [String: String]
-   
+
     public init(
         data: [String: String]
     ) {
         self.data = data
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: StringCodingKey.self)
-        
+
         let values = try container.decode([KeyValue].self, forKey: "data")
         var data: [String: String] = [:]
         for pair in values {
@@ -518,10 +522,10 @@ public struct TelegramBotStorageState: Codable, Equatable {
         }
         self.data = data
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: StringCodingKey.self)
-        
+
         var values: [KeyValue] = []
         for (key, value) in self.data {
             values.append(KeyValue(key: key, value: value))
@@ -534,7 +538,7 @@ private func _internal_updateBotStorageState(account: Account, peerId: EnginePee
     return account.postbox.transaction { transaction -> Signal<Never, BotStorageError> in
         let previousState = transaction.getPreferencesEntry(key: PreferencesKeys.botStorageState(peerId: peerId))?.get(TelegramBotStorageState.self)
         let updatedState = update(previousState)
-        
+
         var totalSize = 0
         for (_, value) in updatedState.data {
             totalSize += value.utf8.count
@@ -542,7 +546,7 @@ private func _internal_updateBotStorageState(account: Account, peerId: EnginePee
         guard totalSize <= maxBotStorageSize else {
             return .fail(.quotaExceeded)
         }
-        
+
         transaction.setPreferencesEntry(key: PreferencesKeys.botStorageState(peerId: peerId), value: PreferencesEntry(updatedState))
         return .never()
     }
@@ -577,18 +581,18 @@ public struct TelegramBotBiometricsState: Codable, Equatable {
     public struct OpaqueToken: Codable, Equatable {
         public let publicKey: Data
         public let data: Data
-        
+
         public init(publicKey: Data, data: Data) {
             self.publicKey = publicKey
             self.data = data
         }
     }
-    
+
     public var deviceId: Data
     public var accessRequested: Bool
     public var accessGranted: Bool
     public var opaqueToken: OpaqueToken?
-    
+
     public static func create() -> TelegramBotBiometricsState {
         var deviceId = Data(count: 32)
         deviceId.withUnsafeMutableBytes { buffer -> Void in
@@ -602,7 +606,7 @@ public struct TelegramBotBiometricsState: Codable, Equatable {
             opaqueToken: nil
         )
     }
-    
+
     public init(deviceId: Data, accessRequested: Bool, accessGranted: Bool, opaqueToken: OpaqueToken?) {
         self.deviceId = deviceId
         self.accessRequested = accessRequested
@@ -614,7 +618,7 @@ public struct TelegramBotBiometricsState: Codable, Equatable {
 func _internal_updateBotBiometricsState(account: Account, peerId: EnginePeer.Id, update: @escaping (TelegramBotBiometricsState?) -> TelegramBotBiometricsState) -> Signal<Never, NoError> {
     return account.postbox.transaction { transaction -> Void in
         let previousState = transaction.getPreferencesEntry(key: PreferencesKeys.botBiometricsState(peerId: peerId))?.get(TelegramBotBiometricsState.self)
-        
+
         transaction.setPreferencesEntry(key: PreferencesKeys.botBiometricsState(peerId: peerId), value: PreferencesEntry(update(previousState)))
     }
     |> ignoreValues
@@ -627,7 +631,7 @@ func _internal_botsWithBiometricState(account: Account) -> Signal<Set<EnginePeer
         guard let view = views.views[viewKey] as? PreferencesPrefixView else {
             return Set()
         }
-        
+
         var result = Set<EnginePeer.Id>()
         for (key, value) in view.values {
             guard let peerId = PreferencesKeys.extractBotBiometricsStatePeerId(key: key) else {
@@ -638,7 +642,7 @@ func _internal_botsWithBiometricState(account: Account) -> Signal<Set<EnginePeer
             }
             result.insert(peerId)
         }
-        
+
         return result
     }
 }
@@ -650,7 +654,7 @@ func _internal_toggleChatManagingBotIsPaused(account: Account, chatId: EnginePee
             guard let current = current as? CachedUserData else {
                 return current
             }
-            
+
             if var peerStatusSettings = current.peerStatusSettings {
                 if let managingBot = peerStatusSettings.managingBot {
                     isPaused = !managingBot.isPaused
@@ -659,7 +663,7 @@ func _internal_toggleChatManagingBotIsPaused(account: Account, chatId: EnginePee
                         peerStatusSettings.managingBot?.canReply = true
                     }
                 }
-                
+
                 return current.withUpdatedPeerStatusSettings(peerStatusSettings)
             } else {
                 return current
@@ -690,10 +694,10 @@ func _internal_removeChatManagingBot(account: Account, chatId: EnginePeer.Id) ->
             guard let current = current as? CachedUserData else {
                 return current
             }
-            
+
             if var peerStatusSettings = current.peerStatusSettings {
                 peerStatusSettings.managingBot = nil
-                
+
                 return current.withUpdatedPeerStatusSettings(peerStatusSettings)
             } else {
                 return current
@@ -703,7 +707,7 @@ func _internal_removeChatManagingBot(account: Account, chatId: EnginePeer.Id) ->
             guard let current = current as? CachedUserData else {
                 return current
             }
-            
+
             if let connectedBot = current.connectedBot {
                 var additionalPeers = connectedBot.recipients.additionalPeers
                 var excludePeers = connectedBot.recipients.excludePeers
@@ -713,7 +717,7 @@ func _internal_removeChatManagingBot(account: Account, chatId: EnginePeer.Id) ->
                     additionalPeers.remove(chatId)
                     excludePeers.insert(chatId)
                 }
-                
+
                 return current.withUpdatedConnectedBot(TelegramAccountConnectedBot(
                     id: connectedBot.id,
                     recipients: TelegramBusinessRecipients(
@@ -775,7 +779,7 @@ public final class EngineConnectedStarRefBotsContext {
         public let durationMonths: Int32?
         public let participants: Int64
         public let revenue: Int64
-        
+
         public init(peer: EnginePeer, url: String, timestamp: Int32, commissionPermille: Int32, durationMonths: Int32?, participants: Int64, revenue: Int64) {
             self.peer = peer
             self.url = url
@@ -785,7 +789,7 @@ public final class EngineConnectedStarRefBotsContext {
             self.participants = participants
             self.revenue = revenue
         }
-        
+
         public static func ==(lhs: Item, rhs: Item) -> Bool {
             if lhs.peer != rhs.peer {
                 return false
@@ -811,25 +815,25 @@ public final class EngineConnectedStarRefBotsContext {
             return true
         }
     }
-    
+
     public struct State: Equatable {
         public struct Offset: Equatable {
             fileprivate var isInitial: Bool
             fileprivate var timestamp: Int32
             fileprivate var link: String
-            
+
             fileprivate init(isInitial: Bool, timestamp: Int32, link: String) {
                 self.isInitial = isInitial
                 self.timestamp = timestamp
                 self.link = link
             }
         }
-        
+
         public var items: [Item]
         public var totalCount: Int
         public var nextOffset: Offset?
         public var isLoaded: Bool
-        
+
         public init(items: [Item], totalCount: Int, nextOffset: Offset?, isLoaded: Bool) {
             self.items = items
             self.totalCount = totalCount
@@ -837,31 +841,31 @@ public final class EngineConnectedStarRefBotsContext {
             self.isLoaded = isLoaded
         }
     }
-    
+
     private final class Impl {
         let queue: Queue
         let account: Account
         let peerId: EnginePeer.Id
-        
+
         var state: State
         var pendingRemoveItems = Set<String>()
         var statePromise = Promise<State>()
-        
+
         var loadMoreDisposable: Disposable?
         var isLoadingMore: Bool = false
-        
+
         var eventsDisposable: Disposable?
-        
+
         init(queue: Queue, account: Account, peerId: EnginePeer.Id) {
             self.queue = queue
             self.account = account
             self.peerId = peerId
-            
+
             self.state = State(items: [], totalCount: 0, nextOffset: State.Offset(isInitial: true, timestamp: 0, link: ""), isLoaded: false)
             self.updateState()
-            
+
             self.loadMore()
-            
+
             self.eventsDisposable = (account.stateManager.starRefBotConnectionEvents()
             |> deliverOn(self.queue)).startStrict(next: { [weak self] event in
                 guard let self else {
@@ -881,13 +885,13 @@ public final class EngineConnectedStarRefBotsContext {
                 }
             })
         }
-        
+
         deinit {
             assert(self.queue.isCurrent())
             self.loadMoreDisposable?.dispose()
             self.eventsDisposable?.dispose()
         }
-        
+
         func loadMore() {
             if self.isLoadingMore {
                 return
@@ -896,7 +900,7 @@ public final class EngineConnectedStarRefBotsContext {
                 return
             }
             self.isLoadingMore = true
-            
+
             var effectiveOffset: (timestamp: Int32, link: String)?
             if !offset.isInitial {
                 effectiveOffset = (timestamp: offset.timestamp, link: offset.link)
@@ -907,9 +911,9 @@ public final class EngineConnectedStarRefBotsContext {
                 guard let self else {
                     return
                 }
-                
+
                 self.isLoadingMore = false
-                
+
                 self.state.isLoaded = true
                 if let result, !result.items.isEmpty {
                     for item in result.items {
@@ -929,11 +933,11 @@ public final class EngineConnectedStarRefBotsContext {
                     self.state.totalCount = self.state.items.count
                     self.state.nextOffset = nil
                 }
-                
+
                 self.updateState()
             })
         }
-        
+
         private func updateState() {
             var state = self.state
             if !self.pendingRemoveItems.isEmpty {
@@ -943,23 +947,23 @@ public final class EngineConnectedStarRefBotsContext {
             }
             self.statePromise.set(.single(state))
         }
-        
+
         func remove(url: String) {
             self.pendingRemoveItems.insert(url)
             let _ = _internal_removeConnectedStarRefBot(account: self.account, id: self.peerId, link: url).startStandalone()
             self.updateState()
         }
     }
-    
+
     private let queue: Queue
     private let impl: QueueLocalObject<Impl>
-    
+
     public var state: Signal<State, NoError> {
         return self.impl.signalWith { impl, subscriber in
             return impl.statePromise.get().start(next: subscriber.putNext)
         }
     }
-    
+
     init(account: Account, peerId: EnginePeer.Id) {
         let queue = Queue.mainQueue()
         self.queue = queue
@@ -967,13 +971,13 @@ public final class EngineConnectedStarRefBotsContext {
             return Impl(queue: queue, account: account, peerId: peerId)
         })
     }
-    
+
     public func loadMore() {
         self.impl.with { impl in
             impl.loadMore()
         }
     }
-    
+
     public func remove(url: String) {
         self.impl.with { impl in
             impl.remove(url: url)
@@ -985,12 +989,12 @@ public final class EngineSuggestedStarRefBotsContext {
     public final class Item: Equatable {
         public let peer: EnginePeer
         public let program: TelegramStarRefProgram
-        
+
         public init(peer: EnginePeer, program: TelegramStarRefProgram) {
             self.peer = peer
             self.program = program
         }
-        
+
         public static func ==(lhs: Item, rhs: Item) -> Bool {
             if lhs.peer != rhs.peer {
                 return false
@@ -1001,13 +1005,13 @@ public final class EngineSuggestedStarRefBotsContext {
             return true
         }
     }
-    
+
     public struct State: Equatable {
         public var items: [Item]
         public var totalCount: Int
         public var nextOffset: String?
         public var isLoaded: Bool
-        
+
         public init(items: [Item], totalCount: Int, nextOffset: String?, isLoaded: Bool) {
             self.items = items
             self.totalCount = totalCount
@@ -1015,42 +1019,42 @@ public final class EngineSuggestedStarRefBotsContext {
             self.isLoaded = isLoaded
         }
     }
-    
+
     public enum SortMode {
         case date
         case profitability
         case revenue
     }
-    
+
     private final class Impl {
         let queue: Queue
         let account: Account
         let peerId: EnginePeer.Id
         let sortMode: SortMode
-        
+
         var state: State
         var statePromise = Promise<State>()
-        
+
         var loadMoreDisposable: Disposable?
         var isLoadingMore: Bool = false
-        
+
         init(queue: Queue, account: Account, peerId: EnginePeer.Id, sortMode: SortMode) {
             self.queue = queue
             self.account = account
             self.peerId = peerId
             self.sortMode = sortMode
-            
+
             self.state = State(items: [], totalCount: 0, nextOffset: "", isLoaded: false)
             self.updateState()
-            
+
             self.loadMore()
         }
-        
+
         deinit {
             assert(self.queue.isCurrent())
             self.loadMoreDisposable?.dispose()
         }
-        
+
         func loadMore() {
             if self.isLoadingMore {
                 return
@@ -1059,7 +1063,7 @@ public final class EngineSuggestedStarRefBotsContext {
                 return
             }
             self.isLoadingMore = true
-            
+
             self.loadMoreDisposable?.dispose()
             self.loadMoreDisposable = (_internal_requestSuggestedStarRefBots(account: self.account, id: self.peerId, sortMode: self.sortMode, offset: offset, limit: 100)
             |> deliverOn(self.queue)).startStrict(next: { [weak self] result in
@@ -1067,7 +1071,7 @@ public final class EngineSuggestedStarRefBotsContext {
                     return
                 }
                 self.isLoadingMore = false
-                
+
                 self.state.isLoaded = true
                 if let result, !result.items.isEmpty {
                     for item in result.items {
@@ -1085,26 +1089,26 @@ public final class EngineSuggestedStarRefBotsContext {
                     self.state.totalCount = self.state.items.count
                     self.state.nextOffset = nil
                 }
-                
+
                 self.updateState()
             })
         }
-        
+
         private func updateState() {
             self.statePromise.set(.single(self.state))
         }
     }
-    
+
     private let queue: Queue
     public let sortMode: SortMode
     private let impl: QueueLocalObject<Impl>
-    
+
     public var state: Signal<State, NoError> {
         return self.impl.signalWith { impl, subscriber in
             return impl.statePromise.get().start(next: subscriber.putNext)
         }
     }
-    
+
     init(account: Account, peerId: EnginePeer.Id, sortMode: SortMode) {
         let queue = Queue.mainQueue()
         self.queue = queue
@@ -1113,7 +1117,7 @@ public final class EngineSuggestedStarRefBotsContext {
             return Impl(queue: queue, account: account, peerId: peerId, sortMode: sortMode)
         })
     }
-    
+
     public func loadMore() {
         self.impl.with { impl in
             impl.loadMore()
@@ -1129,12 +1133,12 @@ func _internal_updateStarRefProgram(account: Account, id: EnginePeer.Id, program
         guard let inputPeer else {
             return .complete()
         }
-        
+
         var flags: Int32 = 0
         if let program, program.durationMonths != nil {
             flags |= 1 << 0
         }
-        
+
         return account.network.request(Api.functions.bots.updateStarRefProgram(
             flags: flags,
             bot: inputPeer,
@@ -1195,7 +1199,7 @@ fileprivate func  _internal_requestConnectedStarRefBots(account: Account, id: En
                 case let .connectedStarRefBots(connectedStarRefBotsData):
                     let (count, connectedBots, users) = (connectedStarRefBotsData.count, connectedStarRefBotsData.connectedBots, connectedStarRefBotsData.users)
                     updatePeers(transaction: transaction, accountPeerId: account.peerId, peers: AccumulatedPeers(users: users))
-                    
+
                     var items: [EngineConnectedStarRefBotsContext.Item] = []
                     for connectedBot in connectedBots {
                         switch connectedBot {
@@ -1215,14 +1219,14 @@ fileprivate func  _internal_requestConnectedStarRefBots(account: Account, id: En
                             ))
                         }
                     }
-                    
+
                     var nextOffset: (timestamp: Int32, link: String)?
                     if !connectedBots.isEmpty {
                         nextOffset = items.last.flatMap { item in
                             return (item.timestamp, item.url)
                         }
                     }
-                    
+
                     return (items: items, totalCount: Int(count), nextOffset: nextOffset)
                 }
             }
@@ -1266,7 +1270,7 @@ fileprivate func _internal_requestSuggestedStarRefBots(account: Account, id: Eng
                 case let .suggestedStarRefBots(suggestedStarRefBotsData):
                     let (count, suggestedBots, users, nextOffset) = (suggestedStarRefBotsData.count, suggestedStarRefBotsData.suggestedBots, suggestedStarRefBotsData.users, suggestedStarRefBotsData.nextOffset)
                     updatePeers(transaction: transaction, accountPeerId: account.peerId, peers: AccumulatedPeers(users: users))
-                    
+
                     var items: [EngineSuggestedStarRefBotsContext.Item] = []
                     for starRefProgram in suggestedBots {
                         let parsedProgram = TelegramStarRefProgram(apiStarRefProgram: starRefProgram)
@@ -1278,7 +1282,7 @@ fileprivate func _internal_requestSuggestedStarRefBots(account: Account, id: Eng
                             program: parsedProgram
                         ))
                     }
-                    
+
                     return (items: items, totalCount: Int(count), nextOffset: nextOffset)
                 }
             }
@@ -1372,7 +1376,7 @@ fileprivate func _internal_removeConnectedStarRefBot(account: Account, id: Engin
 
                     let _ = connectedBots
                 }
-                
+
                 account.stateManager.addStarRefBotConnectionEvent(event: .remove(peerId: id, url: link))
             }
             |> castError(ConnectStarRefBotError.self)
@@ -1415,7 +1419,7 @@ func _internal_getStarRefBotConnection(account: Account, id: EnginePeer.Id, targ
                             if isRevoked {
                                return nil
                             }
-                            
+
                             guard let botPeer = transaction.getPeer(PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(botId))) else {
                                 return nil
                             }
@@ -1453,18 +1457,18 @@ func _internal_getPossibleStarRefBotTargets(account: Account) -> Signal<[EngineP
     |> mapToSignal { apiBots, apiChannels -> Signal<[EnginePeer], NoError> in
         return account.postbox.transaction { transaction -> [EnginePeer] in
             var result: [EnginePeer] = []
-            
+
             if let peer = transaction.getPeer(account.peerId) {
                 result.append(EnginePeer(peer))
             }
-            
+
             updatePeers(transaction: transaction, accountPeerId: account.peerId, peers: AccumulatedPeers(users: apiBots))
             for bot in apiBots {
                 if let peer = transaction.getPeer(bot.peerId) {
                     result.append(EnginePeer(peer))
                 }
             }
-            
+
             if let apiChannels {
                 switch apiChannels {
                 case let .chats(chatsData):
@@ -1487,7 +1491,7 @@ func _internal_getPossibleStarRefBotTargets(account: Account) -> Signal<[EngineP
                     }
                 }
             }
-            
+
             return result
         }
     }

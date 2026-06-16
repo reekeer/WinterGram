@@ -9,6 +9,7 @@ import AccountContext
 import UniversalMediaPlayer
 import TelegramAudio
 import TelegramPresentationData
+import TelegramUIPreferences
 
 private struct AccountTasks {
     let stateSynchronization: Bool
@@ -19,7 +20,7 @@ private struct AccountTasks {
     let activeCalls: Bool
     let watchTasks: Bool
     let userInterfaceInUse: Bool
-    
+
     var isEmpty: Bool {
         if self.stateSynchronization {
             return false
@@ -66,10 +67,10 @@ public final class SharedWakeupManager {
     private let endBackgroundTask: (UIBackgroundTaskIdentifier) -> Void
     private let backgroundTimeRemaining: () -> Double
     private let acquireIdleExtension: () -> Disposable?
-    
+
     private var enableBackgroundTasks: Bool = false
     private let presentationData: () -> PresentationData?
-    
+
     private var inForeground: Bool = false
     private var hasActiveAudioSession: Bool = false
     private var activeExplicitExtensionTimer: SwiftSignalKit.Timer?
@@ -77,7 +78,7 @@ public final class SharedWakeupManager {
     private var allowBackgroundTimeExtensionDeadline: Double?
     private var allowBackgroundTimeExtensionDeadlineTimer: SwiftSignalKit.Timer?
     private var isInBackgroundExtension: Bool = false
-    
+
     private var accountSettingsDisposable: Disposable?
     private var inForegroundDisposable: Disposable?
     private var hasActiveAudioSessionDisposable: Disposable?
@@ -87,13 +88,13 @@ public final class SharedWakeupManager {
     private var currentTask: (UIBackgroundTaskIdentifier, Double, SwiftSignalKit.Timer)?
     private var currentExternalCompletion: (() -> Void, SwiftSignalKit.Timer)?
     private var currentExternalCompletionValidationTimer: SwiftSignalKit.Timer?
-    
+
     private var managedPausedInBackgroundPlayer: Disposable?
     private var keepIdleDisposable: Disposable?
     private var silenceAudioRenderer: MediaPlayerAudioRenderer?
-    
+
     private var accountsAndTasks: [(Account, Bool, AccountTasks)] = []
-    
+
     private var pendingMediaUploadsByKey: [PendingMediaUploadKey: Float] = [:]
     private var backgroundProcessingTaskProgressByKey: [PendingMediaUploadKey: Float] = [:]
     private var nextBackgroundProcessingTaskId: Int = 0
@@ -113,13 +114,13 @@ public final class SharedWakeupManager {
 
     public init(beginBackgroundTask: @escaping (String, @escaping () -> Void) -> UIBackgroundTaskIdentifier?, endBackgroundTask: @escaping (UIBackgroundTaskIdentifier) -> Void, backgroundTimeRemaining: @escaping () -> Double, acquireIdleExtension: @escaping () -> Disposable?, activeAccounts: Signal<(primary: Account?, accounts: [(AccountRecordId, Account)]), NoError>, liveLocationPolling: Signal<AccountRecordId?, NoError>, watchTasks: Signal<AccountRecordId?, NoError>, inForeground: Signal<Bool, NoError>, hasActiveAudioSession: Signal<Bool, NoError>, notificationManager: SharedNotificationManager?, mediaManager: MediaManager, callManager: PresentationCallManager?, accountUserInterfaceInUse: @escaping (AccountRecordId) -> Signal<Bool, NoError>, presentationData: @escaping () -> PresentationData?) {
         assert(Queue.mainQueue().isCurrent())
-        
+
         self.beginBackgroundTask = beginBackgroundTask
         self.endBackgroundTask = endBackgroundTask
         self.backgroundTimeRemaining = backgroundTimeRemaining
         self.acquireIdleExtension = acquireIdleExtension
         self.presentationData = presentationData
-        
+
         self.accountSettingsDisposable = (activeAccounts
         |> mapToSignal { activeAccounts -> Signal<Bool, NoError> in
             guard let account = activeAccounts.primary else {
@@ -142,7 +143,7 @@ public final class SharedWakeupManager {
             }
             self.enableBackgroundTasks = isEnabled
         })
-        
+
         self.inForegroundDisposable = (inForeground
         |> deliverOnMainQueue).startStrict(next: { [weak self] value in
             guard let strongSelf = self else {
@@ -167,7 +168,7 @@ public final class SharedWakeupManager {
             strongSelf.updateBackgroundProcessingTaskStateFromPendingStoryUploads()
             strongSelf.checkTasks()
         })
-        
+
         self.hasActiveAudioSessionDisposable = (hasActiveAudioSession
         |> deliverOnMainQueue).startStrict(next: { [weak self] value in
             guard let strongSelf = self else {
@@ -176,7 +177,7 @@ public final class SharedWakeupManager {
             strongSelf.hasActiveAudioSession = value
             strongSelf.checkTasks()
         })
-        
+
         self.managedPausedInBackgroundPlayer = combineLatest(queue: .mainQueue(), mediaManager.activeGlobalMediaPlayerAccountId, inForeground).startStrict(next: { [weak mediaManager] accountAndActive, inForeground in
             guard let mediaManager = mediaManager else {
                 return
@@ -185,7 +186,7 @@ public final class SharedWakeupManager {
                 mediaManager.audioSession.dropAll()
             }
         })
-        
+
         self.tasksDisposable = (activeAccounts
         |> deliverOnMainQueue
         |> mapToSignal { primary, accounts -> Signal<[(Account, Bool, AccountTasks)], NoError> in
@@ -204,13 +205,13 @@ public final class SharedWakeupManager {
                     return hasActiveMedia && hasActiveAudioSession
                 }
                 |> distinctUntilChanged
-                
+
                 let hasActiveCalls = (callManager?.currentCallSignal ?? .single(nil))
                 |> map { call in
                     return call?.context.account.id == account.id
                 }
                 |> distinctUntilChanged
-                
+
                 let hasActiveGroupCalls = (callManager?.currentGroupCallSignal ?? .single(nil))
                 |> map { call -> Bool in
                     guard let call else {
@@ -224,39 +225,39 @@ public final class SharedWakeupManager {
                     }
                 }
                 |> distinctUntilChanged
-                
+
                 let keepUpdatesForCalls = combineLatest(queue: .mainQueue(), hasActiveCalls, hasActiveGroupCalls)
                 |> map { hasActiveCalls, hasActiveGroupCalls -> Bool in
                     return hasActiveCalls || hasActiveGroupCalls
                 }
                 |> distinctUntilChanged
-                
+
                 let isPlayingBackgroundActiveCall = combineLatest(queue: .mainQueue(), hasActiveCalls, hasActiveGroupCalls, hasActiveAudioSession)
                 |> map { hasActiveCalls, hasActiveGroupCalls, hasActiveAudioSession -> Bool in
                     return (hasActiveCalls || hasActiveGroupCalls) && hasActiveAudioSession
                 }
                 |> distinctUntilChanged
-                
+
                 let hasActiveAudio = combineLatest(queue: .mainQueue(), isPlayingBackgroundAudio, isPlayingBackgroundActiveCall)
                 |> map { isPlayingBackgroundAudio, isPlayingBackgroundActiveCall in
                     return isPlayingBackgroundAudio || isPlayingBackgroundActiveCall
                 }
                 |> distinctUntilChanged
-                
+
                 let hasActiveLiveLocationPolling = liveLocationPolling
                 |> map { id in
                     return id == account.id
                 }
                 |> distinctUntilChanged
-                
+
                 let hasWatchTasks = watchTasks
                 |> map { id in
                     return id == account.id
                 }
                 |> distinctUntilChanged
-                
+
                 let userInterfaceInUse = accountUserInterfaceInUse(account.id)
-                
+
                 return combineLatest(queue: .mainQueue(), account.importantTasksRunning, notificationManager?.isPollingState(accountId: account.id) ?? .single(false), hasActiveAudio, keepUpdatesForCalls, hasActiveLiveLocationPolling, hasWatchTasks, userInterfaceInUse)
                 |> map { importantTasksRunning, isPollingState, hasActiveAudio, keepUpdatesForCalls, hasActiveLiveLocationPolling, hasWatchTasks, userInterfaceInUse -> (Account, Bool, AccountTasks) in
                     return (account, primary?.id == account.id, AccountTasks(stateSynchronization: isPollingState, importantTasks: importantTasksRunning, backgroundLocation: hasActiveLiveLocationPolling, backgroundDownloads: false, backgroundAudio: hasActiveAudio, activeCalls: keepUpdatesForCalls, watchTasks: hasWatchTasks, userInterfaceInUse: userInterfaceInUse))
@@ -271,7 +272,7 @@ public final class SharedWakeupManager {
             strongSelf.accountsAndTasks = accountsAndTasks
             strongSelf.checkTasks()
         })
-        
+
         self.pendingMediaUploadsDisposable = (activeAccounts
         |> deliverOnMainQueue
         |> mapToSignal { _, accounts -> Signal<[PendingMediaUploadKey: Float], NoError> in
@@ -308,7 +309,7 @@ public final class SharedWakeupManager {
             strongSelf.pendingMediaUploadsByKey = pendingMediaUploadsByKey
             strongSelf.updateBackgroundProcessingTaskStateFromPendingMediaUploads()
         })
-        
+
         self.pendingStoryUploadsDisposable = (activeAccounts
         |> deliverOnMainQueue
         |> mapToSignal { _, accounts -> Signal<[PendingStoryUploadKey: PendingStoryUploadStatus], NoError> in
@@ -343,7 +344,7 @@ public final class SharedWakeupManager {
                 return
             }
             strongSelf.pendingStoryUploadStatusesByKey = pendingStoryUploadStatusesByKey
-            
+
             var pendingStoryUploadsByKey: [PendingStoryUploadKey: Float] = [:]
             pendingStoryUploadsByKey.reserveCapacity(pendingStoryUploadStatusesByKey.count)
             for (key, status) in pendingStoryUploadStatusesByKey {
@@ -353,7 +354,7 @@ public final class SharedWakeupManager {
             strongSelf.updateBackgroundProcessingTaskStateFromPendingStoryUploads()
         })
     }
-    
+
     deinit {
         self.accountSettingsDisposable?.dispose()
         self.inForegroundDisposable?.dispose()
@@ -370,12 +371,12 @@ public final class SharedWakeupManager {
             self.endBackgroundTask(taskId)
         }
     }
-    
+
     private func updateBackgroundProcessingTaskStateFromPendingMediaUploads() {
         if !self.enableBackgroundTasks {
             return
         }
-        
+
         let shouldHaveTask = !self.pendingMediaUploadsByKey.isEmpty && !self.inForeground
         let hadTask = self.backgroundProcessingTaskId != nil
 
@@ -411,12 +412,12 @@ public final class SharedWakeupManager {
             }
         }
     }
-    
+
     private func updateBackgroundProcessingTaskStateFromPendingStoryUploads() {
         if !self.enableBackgroundTasks {
             return
         }
-        
+
         let shouldHaveTask = !self.pendingStoryUploadStatusesByKey.isEmpty && !self.inForeground
         let hadTask = self.backgroundStoryProcessingTaskId != nil
 
@@ -452,14 +453,14 @@ public final class SharedWakeupManager {
             }
         }
     }
-    
+
     private func cancelUploadingMessagesForCurrentTask() {
         let keys = Array(self.pendingMediaUploadsByKey.keys)
         if keys.isEmpty {
             Logger.shared.log("Wakeup", "BG task external cancel: no pending uploads to delete")
             return
         }
-        
+
         var messageIdsByAccount: [AccountRecordId: [EngineMessage.Id]] = [:]
         for key in keys {
             if messageIdsByAccount[key.accountId] == nil {
@@ -467,13 +468,13 @@ public final class SharedWakeupManager {
             }
             messageIdsByAccount[key.accountId]?.append(key.messageId)
         }
-        
+
         for key in keys {
             self.pendingMediaUploadsByKey.removeValue(forKey: key)
         }
-        
+
         Logger.shared.log("Wakeup", "BG task external cancel: deleting \(keys.count) uploading messages across \(messageIdsByAccount.count) accounts")
-        
+
         for (accountId, messageIds) in messageIdsByAccount {
             guard let account = self.accountsAndTasks.first(where: { $0.0.id == accountId })?.0 else {
                 Logger.shared.log("Wakeup", "BG task external cancel: missing account \(accountId.int64), skip \(messageIds.count) messages")
@@ -483,14 +484,14 @@ public final class SharedWakeupManager {
             let _ = TelegramEngine(account: account).messages.deleteMessagesInteractively(messageIds: messageIds, type: .forLocalPeer).startStandalone()
         }
     }
-    
+
     private func cancelUploadingStoriesForCurrentTask() {
         let keys = Array(self.pendingStoryUploadsByKey.keys)
         if keys.isEmpty {
             Logger.shared.log("Wakeup", "Story BG task external cancel: no pending uploads to cancel")
             return
         }
-        
+
         var stableIdsByAccount: [AccountRecordId: [Int32]] = [:]
         for key in keys {
             if stableIdsByAccount[key.accountId] == nil {
@@ -498,14 +499,14 @@ public final class SharedWakeupManager {
             }
             stableIdsByAccount[key.accountId]?.append(key.stableId)
         }
-        
+
         for key in keys {
             self.pendingStoryUploadsByKey.removeValue(forKey: key)
             self.pendingStoryUploadStatusesByKey.removeValue(forKey: key)
         }
-        
+
         Logger.shared.log("Wakeup", "Story BG task external cancel: cancelling \(keys.count) uploading stories across \(stableIdsByAccount.count) accounts")
-        
+
         for (accountId, stableIds) in stableIdsByAccount {
             guard let account = self.accountsAndTasks.first(where: { $0.0.id == accountId })?.0 else {
                 Logger.shared.log("Wakeup", "Story BG task external cancel: missing account \(accountId.int64), skip \(stableIds.count) stories")
@@ -518,7 +519,7 @@ public final class SharedWakeupManager {
             }
         }
     }
-    
+
     private func startBackgroundProcessingTaskIfNeeded() {
         guard #available(iOS 26.0, *) else {
             return
@@ -532,14 +533,14 @@ public final class SharedWakeupManager {
         guard let presentationData = self.presentationData() else {
             return
         }
-        
+
         let baseAppBundleId = Bundle.main.bundleIdentifier!
         let uploadTaskId = "\(baseAppBundleId).upload.message\(self.nextBackgroundProcessingTaskId)"
         self.nextBackgroundProcessingTaskId += 1
         self.backgroundProcessingTaskProgressByKey = [:]
         self.backgroundProcessingTaskLaunched = false
         self.backgroundProcessingTaskCancellationRequestedByApp = false
-        
+
         BGTaskScheduler.shared.register(forTaskWithIdentifier: uploadTaskId, using: nil, launchHandler: { [weak self] task in
             guard let task = task as? BGContinuedProcessingTask else {
                 return
@@ -549,7 +550,7 @@ public final class SharedWakeupManager {
                 task.setTaskCompleted(success: true)
                 return
             }
-            
+
             Task { @MainActor [weak self] in
                 guard let self else {
                     return
@@ -558,12 +559,12 @@ public final class SharedWakeupManager {
                     self.backgroundProcessingTaskLaunched = true
                 }
             }
-            
+
             var wasExpired = false
-            
+
             task.expirationHandler = { [weak self] in
                 wasExpired = true
-                
+
                 Queue.mainQueue().async {
                     guard let self else {
                         return
@@ -590,21 +591,21 @@ public final class SharedWakeupManager {
                     }
                 }
             }
-            
+
             Task { @MainActor [weak self] in
                 guard let self else {
                     task.updateTitle(task.title, subtitle: presentationData.strings.BackgroundTasks_MediaFinished)
                     task.setTaskCompleted(success: true)
                     return
                 }
-                
+
                 var foregroundCancellationRequested = false
-                
+
                 while true {
                     if wasExpired {
                         break
                     }
-                    
+
                     if self.backgroundProcessingTaskId != task.identifier || self.pendingMediaUploadsByKey.isEmpty {
                         self.backgroundProcessingTaskProgressByKey = [:]
                         task.updateTitle(task.title, subtitle: presentationData.strings.BackgroundTasks_MediaFinished)
@@ -618,7 +619,7 @@ public final class SharedWakeupManager {
                         }
                         return
                     }
-                    
+
                     if self.inForeground {
                         if !foregroundCancellationRequested {
                             foregroundCancellationRequested = true
@@ -634,11 +635,11 @@ public final class SharedWakeupManager {
                     } else {
                         foregroundCancellationRequested = false
                     }
-                    
+
                     if self.backgroundProcessingTaskId != task.identifier {
                         return
                     }
-                    
+
                     var currentKeys = Set<PendingMediaUploadKey>()
                     for (key, progress) in self.pendingMediaUploadsByKey {
                         currentKeys.insert(key)
@@ -652,39 +653,39 @@ public final class SharedWakeupManager {
                     for key in self.backgroundProcessingTaskProgressByKey.keys where !currentKeys.contains(key) {
                         self.backgroundProcessingTaskProgressByKey[key] = 1.0
                     }
-                    
+
                     let progressPrecision: Int64 = 1000
                     let totalItemCount = max(1, self.backgroundProcessingTaskProgressByKey.count)
                     let totalUnitCount = Int64(totalItemCount) * progressPrecision
-                    
+
                     var completedUnitCount: Int64 = 0
                     for progress in self.backgroundProcessingTaskProgressByKey.values {
                         completedUnitCount += Int64((progress * Float(progressPrecision)).rounded(.down))
                     }
                     completedUnitCount = min(totalUnitCount, max(0, completedUnitCount))
-                    
+
                     task.progress.totalUnitCount = totalUnitCount
                     task.progress.completedUnitCount = completedUnitCount
-                    
+
                     let title: String = presentationData.strings.BackgroundTasks_UploadingMedia(Int32(self.pendingMediaUploadsByKey.count))
                     if task.title != title {
                         task.updateTitle(title, subtitle: presentationData.strings.BackgroundTasks_MediaSubtitle)
                     }
-                    
+
                     try await Task.sleep(for: .seconds(1.0))
                 }
             }
         })
-        
+
         let title: String = presentationData.strings.BackgroundTasks_UploadingMedia(Int32(self.pendingMediaUploadsByKey.count))
-        
+
         let request = BGContinuedProcessingTaskRequest(
             identifier: uploadTaskId,
             title: title,
             subtitle: presentationData.strings.BackgroundTasks_MediaSubtitle
         )
         request.strategy = .fail
-        
+
         do {
             try BGTaskScheduler.shared.submit(request)
             self.backgroundProcessingTaskId = uploadTaskId
@@ -694,7 +695,7 @@ public final class SharedWakeupManager {
             Logger.shared.log("Wakeup", "BGTaskScheduler submit error: \(e)")
         }
     }
-    
+
     private func startBackgroundStoryProcessingTaskIfNeeded() {
         guard #available(iOS 26.0, *) else {
             return
@@ -708,14 +709,14 @@ public final class SharedWakeupManager {
         guard let presentationData = self.presentationData() else {
             return
         }
-        
+
         let baseAppBundleId = Bundle.main.bundleIdentifier!
         let uploadTaskId = "\(baseAppBundleId).upload.story\(self.nextBackgroundStoryProcessingTaskId)"
         self.nextBackgroundStoryProcessingTaskId += 1
         self.backgroundStoryProcessingTaskProgressByKey = [:]
         self.backgroundStoryProcessingTaskLaunched = false
         self.backgroundStoryProcessingTaskCancellationRequestedByApp = false
-        
+
         BGTaskScheduler.shared.register(forTaskWithIdentifier: uploadTaskId, using: nil, launchHandler: { [weak self] task in
             guard let task = task as? BGContinuedProcessingTask else {
                 return
@@ -725,7 +726,7 @@ public final class SharedWakeupManager {
                 task.setTaskCompleted(success: true)
                 return
             }
-            
+
             Task { @MainActor [weak self] in
                 guard let self else {
                     return
@@ -734,12 +735,12 @@ public final class SharedWakeupManager {
                     self.backgroundStoryProcessingTaskLaunched = true
                 }
             }
-            
+
             var wasExpired = false
-            
+
             task.expirationHandler = { [weak self] in
                 wasExpired = true
-                
+
                 Queue.mainQueue().async {
                     guard let self else {
                         return
@@ -766,23 +767,23 @@ public final class SharedWakeupManager {
                     }
                 }
             }
-            
+
             Task { @MainActor [weak self] in
                 guard let self else {
                     task.updateTitle(task.title, subtitle: presentationData.strings.BackgroundTasks_StoryFinished)
                     task.setTaskCompleted(success: true)
                     return
                 }
-                
+
                 var foregroundCancellationRequested = false
                 var currentDisplayedTitle: String?
                 var currentDisplayedSubtitle: String?
-                
+
                 while true {
                     if wasExpired {
                         break
                     }
-                    
+
                     if self.backgroundStoryProcessingTaskId != task.identifier || self.pendingStoryUploadStatusesByKey.isEmpty {
                         self.backgroundStoryProcessingTaskProgressByKey = [:]
                         task.updateTitle(task.title, subtitle: presentationData.strings.BackgroundTasks_StoryFinished)
@@ -796,7 +797,7 @@ public final class SharedWakeupManager {
                         }
                         return
                     }
-                    
+
                     if self.inForeground {
                         if !foregroundCancellationRequested {
                             foregroundCancellationRequested = true
@@ -812,11 +813,11 @@ public final class SharedWakeupManager {
                     } else {
                         foregroundCancellationRequested = false
                     }
-                    
+
                     if self.backgroundStoryProcessingTaskId != task.identifier {
                         return
                     }
-                    
+
                     var currentKeys = Set<PendingStoryUploadKey>()
                     for (key, status) in self.pendingStoryUploadStatusesByKey {
                         currentKeys.insert(key)
@@ -830,20 +831,20 @@ public final class SharedWakeupManager {
                     for key in self.backgroundStoryProcessingTaskProgressByKey.keys where !currentKeys.contains(key) {
                         self.backgroundStoryProcessingTaskProgressByKey[key] = 1.0
                     }
-                    
+
                     let progressPrecision: Int64 = 1000
                     let totalItemCount = max(1, self.backgroundStoryProcessingTaskProgressByKey.count)
                     let totalUnitCount = Int64(totalItemCount) * progressPrecision
-                    
+
                     var completedUnitCount: Int64 = 0
                     for progress in self.backgroundStoryProcessingTaskProgressByKey.values {
                         completedUnitCount += Int64((progress * Float(progressPrecision)).rounded(.down))
                     }
                     completedUnitCount = min(totalUnitCount, max(0, completedUnitCount))
-                    
+
                     task.progress.totalUnitCount = totalUnitCount
                     task.progress.completedUnitCount = completedUnitCount
-                    
+
                     let title: String = presentationData.strings.BackgroundTasks_UploadingStories(Int32(self.pendingStoryUploadsByKey.count))
                     let subtitle: String
                     if self.pendingStoryUploadStatusesByKey.values.contains(where: { $0.phase == .processing }) {
@@ -856,12 +857,12 @@ public final class SharedWakeupManager {
                         currentDisplayedTitle = title
                         currentDisplayedSubtitle = subtitle
                     }
-                    
+
                     try await Task.sleep(for: .seconds(1.0))
                 }
             }
         })
-        
+
         let title: String = presentationData.strings.BackgroundTasks_UploadingStories(Int32(self.pendingStoryUploadsByKey.count))
         let subtitle: String
         if self.pendingStoryUploadStatusesByKey.values.contains(where: { $0.phase == .processing }) {
@@ -869,7 +870,7 @@ public final class SharedWakeupManager {
         } else {
             subtitle = presentationData.strings.BackgroundTasks_StorySubtitle
         }
-        
+
         let request = BGContinuedProcessingTaskRequest(
             identifier: uploadTaskId,
             title: title,
@@ -879,7 +880,7 @@ public final class SharedWakeupManager {
         /*if BGTaskScheduler.supportedResources.contains(.gpu) {
             request.requiredResources = .gpu
         }*/
-        
+
         do {
             try BGTaskScheduler.shared.submit(request)
             self.backgroundStoryProcessingTaskId = uploadTaskId
@@ -889,11 +890,11 @@ public final class SharedWakeupManager {
             Logger.shared.log("Wakeup", "Story BGTaskScheduler submit error: \(e)")
         }
     }
-    
+
     func allowBackgroundTimeExtension(timeout: Double, extendNow: Bool = false) {
         let shouldCheckTasks = self.allowBackgroundTimeExtensionDeadline == nil
         self.allowBackgroundTimeExtensionDeadline = CFAbsoluteTimeGetCurrent() + timeout
-        
+
         self.allowBackgroundTimeExtensionDeadlineTimer?.invalidate()
         self.allowBackgroundTimeExtensionDeadlineTimer = SwiftSignalKit.Timer(timeout: timeout, repeat: false, completion: { [weak self] in
             guard let strongSelf = self else {
@@ -904,7 +905,7 @@ public final class SharedWakeupManager {
             strongSelf.checkTasks()
         }, queue: .mainQueue())
         self.allowBackgroundTimeExtensionDeadlineTimer?.start()
-        
+
         if extendNow {
             if self.activeExplicitExtensionTimer == nil {
                 let activeExplicitExtensionTimer = SwiftSignalKit.Timer(timeout: 20.0, repeat: false, completion: { [weak self] in
@@ -921,7 +922,7 @@ public final class SharedWakeupManager {
                 }, queue: .mainQueue())
                 self.activeExplicitExtensionTimer = activeExplicitExtensionTimer
                 activeExplicitExtensionTimer.start()
-                
+
                 self.activeExplicitExtensionTask = self.beginBackgroundTask("explicit-extension") { [weak self, weak activeExplicitExtensionTimer] in
                     guard let self, let activeExplicitExtensionTimer else {
                         return
@@ -942,7 +943,7 @@ public final class SharedWakeupManager {
             self.checkTasks()
         }
     }
-    
+
     func replaceCurrentExtensionWithExternalTime(completion: @escaping () -> Void, timeout: Double) {
         if let (currentCompletion, timer) = self.currentExternalCompletion {
             currentCompletion()
@@ -964,7 +965,7 @@ public final class SharedWakeupManager {
         }, queue: Queue.mainQueue())
         self.currentExternalCompletion = (completion, timer)
         timer.start()
-        
+
         self.currentExternalCompletionValidationTimer?.invalidate()
         let validationTimer = SwiftSignalKit.Timer(timeout: 1.0, repeat: false, completion: { [weak self] in
             guard let strongSelf = self else {
@@ -978,10 +979,10 @@ public final class SharedWakeupManager {
         validationTimer.start()
         self.checkTasks()
     }
-    
+
     func checkTasks() {
         var hasTasksForBackgroundExtension = false
-        
+
         var hasActiveCalls = false
         var pendingMessageCount = 0
         for (_, _, tasks) in self.accountsAndTasks {
@@ -990,16 +991,16 @@ public final class SharedWakeupManager {
             }
             pendingMessageCount += tasks.importantTasks.pendingMessageCount
         }
-        
+
         var endTaskAfterTransactionsComplete: UIBackgroundTaskIdentifier?
-        
+
         if self.inForeground || self.hasActiveAudioSession || hasActiveCalls {
             if let (completion, timer) = self.currentExternalCompletion {
                 self.currentExternalCompletion = nil
                 completion()
                 timer.invalidate()
             }
-            
+
             if let (taskId, _, timer) = self.currentTask {
                 self.currentTask = nil
                 timer.invalidate()
@@ -1013,7 +1014,7 @@ public final class SharedWakeupManager {
                     break
                 }
             }
-            
+
             if !hasTasksForBackgroundExtension && self.currentExternalCompletionValidationTimer == nil {
                 if let (completion, timer) = self.currentExternalCompletion {
                     self.currentExternalCompletion = nil
@@ -1021,16 +1022,16 @@ public final class SharedWakeupManager {
                     timer.invalidate()
                 }
             }
-            
+
             if self.activeExplicitExtensionTimer != nil {
                 hasTasksForBackgroundExtension = true
             }
-            
+
             let canBeginBackgroundExtensionTasks = self.allowBackgroundTimeExtensionDeadline.flatMap({ CFAbsoluteTimeGetCurrent() < $0 }) ?? false
             if hasTasksForBackgroundExtension {
                 if canBeginBackgroundExtensionTasks {
                     var endTaskId: UIBackgroundTaskIdentifier?
-                    
+
                     let currentTime = CFAbsoluteTimeGetCurrent()
                     if let (taskId, startTime, timer) = self.currentTask {
                         if startTime < currentTime + 1.0 {
@@ -1039,23 +1040,23 @@ public final class SharedWakeupManager {
                             endTaskId = taskId
                         }
                     }
-                    
+
                     if self.currentTask == nil {
                         var actualTaskId: UIBackgroundTaskIdentifier?
                         let handleExpiration: () -> Void = { [weak self] in
                             guard let strongSelf = self else {
                                 return
                             }
-                            
+
                             if let actualTaskId {
                                 strongSelf.endBackgroundTask(actualTaskId)
-                                
+
                                 if let (taskId, _, timer) = strongSelf.currentTask, taskId == actualTaskId {
                                     timer.invalidate()
                                     strongSelf.currentTask = nil
                                 }
                             }
-                            
+
                             strongSelf.isInBackgroundExtension = false
                             strongSelf.checkTasks()
                         }
@@ -1068,24 +1069,24 @@ public final class SharedWakeupManager {
                             }, queue: Queue.mainQueue())
                             self.currentTask = (taskId, currentTime, timer)
                             timer.start()
-                            
+
                             endTaskId.flatMap(self.endBackgroundTask)
-                            
+
                             self.isInBackgroundExtension = true
                         }
                     }
                 }
             } else if let (taskId, _, timer) = self.currentTask {
                 self.currentTask = nil
-                
+
                 timer.invalidate()
-                
+
                 endTaskAfterTransactionsComplete = taskId
-                
+
                 self.isInBackgroundExtension = false
             }
         }
-        
+
         if pendingMessageCount != 0 && !self.inForeground {
             if self.keepIdleDisposable == nil {
                 self.keepIdleDisposable = self.acquireIdleExtension()
@@ -1096,9 +1097,9 @@ public final class SharedWakeupManager {
                 keepIdleDisposable.dispose()
             }
         }
-        
+
         self.updateAccounts(hasTasks: hasTasksForBackgroundExtension, endTaskAfterTransactionsComplete: endTaskAfterTransactionsComplete)
-        
+
         /*if !self.inForeground && pendingMessageCount != 0 && !self.hasActiveAudioSession {
             if self.silenceAudioRenderer == nil {
                 let audioSession = AVAudioSession()
@@ -1108,7 +1109,7 @@ public final class SharedWakeupManager {
                     audioSession: .custom({ control in
                         let _ = try? audioSession.setActive(true)
                         control.activate()
-                        
+
                         return EmptyDisposable
                     }),
                     forAudioVideoMessage: false,
@@ -1131,26 +1132,27 @@ public final class SharedWakeupManager {
             silenceAudioRenderer.stop()
         }*/
     }
-    
+
     private func updateAccounts(hasTasks: Bool, endTaskAfterTransactionsComplete: UIBackgroundTaskIdentifier?) {
         let hasBackgroundLocationTask = self.accountsAndTasks.contains(where: { $0.2.backgroundLocation })
-        
+
         if self.inForeground || self.hasActiveAudioSession || self.isInBackgroundExtension || self.backgroundProcessingTaskId != nil || self.backgroundStoryProcessingTaskId != nil || hasBackgroundLocationTask || (hasTasks && self.currentExternalCompletion != nil) || self.activeExplicitExtensionTimer != nil || self.silenceAudioRenderer != nil {
             Logger.shared.log("Wakeup", "enableBeginTransactions: true (active)")
-            
+
             for (account, primary, tasks) in self.accountsAndTasks {
                 account.postbox.setCanBeginTransactions(true)
-                
+
                 if (self.inForeground && primary) || !tasks.isEmpty || (self.activeExplicitExtensionTimer != nil && primary) {
                     account.shouldBeServiceTaskMaster.set(.single(.always))
                 } else {
                     account.shouldBeServiceTaskMaster.set(.single(.never))
                 }
                 account.shouldExplicitelyKeepWorkerConnections.set(.single(tasks.backgroundAudio || tasks.backgroundLocation || tasks.importantTasks.pendingStoryCount != 0 || tasks.importantTasks.pendingMessageCount != 0))
-                account.shouldKeepOnlinePresence.set(.single(primary && self.inForeground))
+                let ghostOnline = currentWinterGramSettings.suppressesOnlinePresence
+                account.shouldKeepOnlinePresence.set(.single(primary && self.inForeground && !ghostOnline))
                 account.shouldKeepBackgroundDownloadConnections.set(.single(tasks.backgroundDownloads))
             }
-            
+
             if let endTaskAfterTransactionsComplete {
                 self.endBackgroundTask(endTaskAfterTransactionsComplete)
             }
@@ -1160,11 +1162,11 @@ public final class SharedWakeupManager {
                 enableBeginTransactions = true
             }
             Logger.shared.log("Wakeup", "enableBeginTransactions: \(enableBeginTransactions)")
-            
+
             final class CompletionObservationState {
                 var isCompleted: Bool = false
                 var remainingAccounts: [AccountRecordId]
-                
+
                 init(remainingAccounts: [AccountRecordId]) {
                     self.remainingAccounts = remainingAccounts
                 }
@@ -1187,7 +1189,7 @@ public final class SharedWakeupManager {
                     }
                 }
             }
-            
+
             for (account, _, _) in self.accountsAndTasks {
                 let accountId = account.id
                 account.postbox.setCanBeginTransactions(enableBeginTransactions, afterTransactionIfRunning: {
@@ -1197,7 +1199,7 @@ public final class SharedWakeupManager {
                 account.shouldKeepOnlinePresence.set(.single(false))
                 account.shouldKeepBackgroundDownloadConnections.set(.single(false))
             }
-            
+
             checkCompletionState(nil)
         }
     }

@@ -4,26 +4,49 @@ import AsyncDisplayKit
 
 private var sharedIsReduceTransparencyEnabled = UIAccessibility.isReduceTransparencyEnabled
 
+// WinterGram Liquid Glass: when enabled, opaque bar backgrounds are made translucent,
+// which activates the blur path below. Display cannot depend on TelegramUIPreferences,
+// so the settings observer in the UI layer pushes values here (main thread).
+public extension Notification.Name {
+    static let winterGramLiquidGlassChanged = Notification.Name("winterGramLiquidGlassChanged")
+}
+
+public struct DisplayLiquidGlass {
+    public static var enabled: Bool = false
+    // Alpha applied to otherwise-opaque backgrounds; (1 - transparency) from settings.
+    public static var alpha: CGFloat = 0.65
+    public static var blurRadius: CGFloat? = nil
+    public static var vibrancy: Bool = true
+}
+
+private func applyLiquidGlass(to color: UIColor) -> UIColor {
+    if DisplayLiquidGlass.enabled, color.alpha >= 0.95 {
+        return color.withAlphaComponent(max(0.05, min(0.9, DisplayLiquidGlass.alpha)))
+    }
+    return color
+}
+
 public final class NavigationBackgroundNode: ASDisplayNode {
     private var _color: UIColor
+    private var _originalColor: UIColor = .clear
 
     public var color: UIColor {
         return self._color
     }
-    
+
     private var enableBlur: Bool
     private var enableSaturation: Bool
     private var customBlurRadius: CGFloat?
 
     public var effectView: UIVisualEffectView?
     private let backgroundNode: ASDisplayNode
-    
+
     public var backgroundView: UIView {
         return self.backgroundNode.view
     }
 
     private var validLayout: (CGSize, CGFloat)?
-    
+
     public var backgroundCornerRadius: CGFloat {
         if let (_, cornerRadius) = self.validLayout {
             return cornerRadius
@@ -31,6 +54,8 @@ public final class NavigationBackgroundNode: ASDisplayNode {
             return 0.0
         }
     }
+
+    private var liquidGlassDisposable: Any?
 
     public init(color: UIColor, enableBlur: Bool = true, enableSaturation: Bool = true, customBlurRadius: CGFloat? = nil) {
         self._color = .clear
@@ -45,20 +70,32 @@ public final class NavigationBackgroundNode: ASDisplayNode {
         self.addSubnode(self.backgroundNode)
 
         self.updateColor(color: color, transition: .immediate)
+
+        self.liquidGlassDisposable = NotificationCenter.default.addObserver(forName: .winterGramLiquidGlassChanged, object: nil, queue: .main, using: { [weak self] _ in
+            if let strongSelf = self {
+                strongSelf.updateColor(color: strongSelf._originalColor, transition: .animated(duration: 0.2, curve: .easeInOut))
+            }
+        })
     }
 
-    
+    deinit {
+        if let liquidGlassDisposable = self.liquidGlassDisposable {
+            NotificationCenter.default.removeObserver(liquidGlassDisposable)
+        }
+    }
+
+
     public override func didLoad() {
         super.didLoad()
-        
+
         if self.scheduledUpdate {
             self.scheduledUpdate = false
             self.updateBackgroundBlur(forceKeepBlur: false)
         }
     }
-    
+
     private var scheduledUpdate = false
-    
+
     private func updateBackgroundBlur(forceKeepBlur: Bool) {
         guard self.isNodeLoaded else {
             self.scheduledUpdate = true
@@ -113,9 +150,11 @@ public final class NavigationBackgroundNode: ASDisplayNode {
     }
 
     public func updateColor(color: UIColor, enableBlur: Bool? = nil, enableSaturation: Bool? = nil, forceKeepBlur: Bool = false, transition: ContainedViewLayoutTransition) {
+        self._originalColor = color
+        let color = applyLiquidGlass(to: color)
         let effectiveEnableBlur = enableBlur ?? self.enableBlur
         let effectiveEnableSaturation = enableSaturation ?? self.enableSaturation
-        
+
         if self._color.isEqual(color) && self.enableBlur == effectiveEnableBlur && self.enableSaturation == effectiveEnableSaturation {
             return
         }
@@ -152,7 +191,7 @@ public final class NavigationBackgroundNode: ASDisplayNode {
             effectView.clipsToBounds = !cornerRadius.isZero
         }
     }
-    
+
     public func update(size: CGSize, cornerRadius: CGFloat = 0.0, animator: ControlledTransitionAnimator) {
         self.validLayout = (size, cornerRadius)
 
@@ -177,6 +216,7 @@ public final class NavigationBackgroundNode: ASDisplayNode {
 
 open class BlurredBackgroundView: UIView {
     private var _color: UIColor?
+    private var _originalColor: UIColor?
 
     private var enableBlur: Bool
     private var customBlurRadius: CGFloat?
@@ -185,7 +225,7 @@ open class BlurredBackgroundView: UIView {
     private let backgroundView: UIView
 
     private var validLayout: (CGSize, CGFloat)?
-    
+
     public var backgroundCornerRadius: CGFloat {
         if let (_, cornerRadius) = self.validLayout {
             return cornerRadius
@@ -193,6 +233,8 @@ open class BlurredBackgroundView: UIView {
             return 0.0
         }
     }
+
+    private var liquidGlassDisposable: Any?
 
     public init(color: UIColor?, enableBlur: Bool = true, customBlurRadius: CGFloat? = nil) {
         self._color = nil
@@ -208,12 +250,24 @@ open class BlurredBackgroundView: UIView {
         if let color = color {
             self.updateColor(color: color, transition: .immediate)
         }
+
+        self.liquidGlassDisposable = NotificationCenter.default.addObserver(forName: .winterGramLiquidGlassChanged, object: nil, queue: .main, using: { [weak self] _ in
+            if let strongSelf = self, let color = strongSelf._originalColor {
+                strongSelf.updateColor(color: color, transition: .animated(duration: 0.2, curve: .easeInOut))
+            }
+        })
     }
-    
+
+    deinit {
+        if let liquidGlassDisposable = self.liquidGlassDisposable {
+            NotificationCenter.default.removeObserver(liquidGlassDisposable)
+        }
+    }
+
     required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     private func updateBackgroundBlur(forceKeepBlur: Bool) {
         if let color = self._color, self.enableBlur && !sharedIsReduceTransparencyEnabled && ((color.alpha > .ulpOfOne && color.alpha < 0.95) || forceKeepBlur) {
             if self.effectView == nil {
@@ -263,6 +317,8 @@ open class BlurredBackgroundView: UIView {
     }
 
     public func updateColor(color: UIColor, enableBlur: Bool? = nil, forceKeepBlur: Bool = false, transition: ContainedViewLayoutTransition) {
+        self._originalColor = color
+        let color = applyLiquidGlass(to: color)
         let effectiveEnableBlur = enableBlur ?? self.enableBlur
 
         if self._color == color && self.enableBlur == effectiveEnableBlur {
@@ -293,7 +349,7 @@ open class BlurredBackgroundView: UIView {
                 }
             }
         }
-        
+
         if #available(iOS 11.0, *) {
             self.backgroundView.layer.maskedCorners = maskedCorners
         }
@@ -302,13 +358,13 @@ open class BlurredBackgroundView: UIView {
         if let effectView = self.effectView {
             transition.updateCornerRadius(layer: effectView.layer, cornerRadius: cornerRadius)
             effectView.clipsToBounds = !cornerRadius.isZero
-            
+
             if #available(iOS 11.0, *) {
                 effectView.layer.maskedCorners = maskedCorners
             }
         }
     }
-    
+
     public func update(size: CGSize, cornerRadius: CGFloat = 0.0, animator: ControlledTransitionAnimator) {
         self.validLayout = (size, cornerRadius)
 

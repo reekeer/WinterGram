@@ -18,7 +18,7 @@ public struct PresentationDateTimeFormat: Equatable {
     public let requiresFullYear: Bool
     public let decimalSeparator: String
     public let groupingSeparator: String
-    
+
     public init() {
         self.timeFormat = .regular
         self.dateFormat = .monthFirst
@@ -28,7 +28,7 @@ public struct PresentationDateTimeFormat: Equatable {
         self.decimalSeparator = "."
         self.groupingSeparator = "."
     }
-    
+
     public init(timeFormat: PresentationTimeFormat, dateFormat: PresentationDateFormat, dateSeparator: String, dateSuffix: String, requiresFullYear: Bool, decimalSeparator: String, groupingSeparator: String) {
         self.timeFormat = timeFormat
         self.dateFormat = dateFormat
@@ -45,7 +45,7 @@ public struct PresentationAppIcon: Equatable {
     public let imageName: String
     public let isDefault: Bool
     public let isPremium: Bool
-    
+
     public init(name: String, imageName: String, isDefault: Bool = false, isPremium: Bool = false) {
         self.name = name
         self.imageName = imageName
@@ -64,12 +64,22 @@ public enum PresentationDateFormat {
     case dayFirst
 }
 
+// WinterGram: bubble corner radius. The messageBubbleRadius setting overrides Telegram's
+// own bubble radius only when the user changed it from the WinterGram default (16).
+public func winterGramEffectiveBubbleRadius(_ themeValue: Int32) -> CGFloat {
+    let wnt = currentWinterGramSettings.messageBubbleRadius
+    if wnt != 16 {
+        return CGFloat(max(0, min(20, wnt)))
+    }
+    return CGFloat(themeValue)
+}
+
 public struct PresentationChatBubbleCorners: Equatable, Hashable {
     public var mainRadius: CGFloat
     public var auxiliaryRadius: CGFloat
     public var mergeBubbleCorners: Bool
     public var hasTails: Bool
-    
+
     public init(mainRadius: CGFloat, auxiliaryRadius: CGFloat, mergeBubbleCorners: Bool, hasTails: Bool = true) {
         self.mainRadius = mainRadius
         self.auxiliaryRadius = auxiliaryRadius
@@ -91,7 +101,7 @@ public final class PresentationData: Equatable {
     public let nameSortOrder: PresentationPersonNameOrder
     public let reduceMotion: Bool
     public let largeEmoji: Bool
-    
+
     public init(strings: PresentationStrings, theme: PresentationTheme, autoNightModeTriggered: Bool, chatWallpaper: TelegramWallpaper, chatFontSize: PresentationFontSize, chatBubbleCorners: PresentationChatBubbleCorners, listsFontSize: PresentationFontSize, dateTimeFormat: PresentationDateTimeFormat, nameDisplayOrder: PresentationPersonNameOrder, nameSortOrder: PresentationPersonNameOrder, reduceMotion: Bool, largeEmoji: Bool) {
         self.strings = strings
         self.theme = theme
@@ -106,19 +116,19 @@ public final class PresentationData: Equatable {
         self.reduceMotion = reduceMotion
         self.largeEmoji = largeEmoji
     }
-    
+
     public func withUpdated(theme: PresentationTheme) -> PresentationData {
         return PresentationData(strings: self.strings, theme: theme, autoNightModeTriggered: self.autoNightModeTriggered, chatWallpaper: self.chatWallpaper, chatFontSize: self.chatFontSize, chatBubbleCorners: self.chatBubbleCorners, listsFontSize: self.listsFontSize, dateTimeFormat: self.dateTimeFormat, nameDisplayOrder: self.nameDisplayOrder, nameSortOrder: self.nameSortOrder, reduceMotion: self.reduceMotion, largeEmoji: self.largeEmoji)
     }
-    
+
     public func withUpdated(chatWallpaper: TelegramWallpaper) -> PresentationData {
         return PresentationData(strings: self.strings, theme: self.theme, autoNightModeTriggered: self.autoNightModeTriggered, chatWallpaper: chatWallpaper, chatFontSize: self.chatFontSize, chatBubbleCorners: self.chatBubbleCorners, listsFontSize: self.listsFontSize, dateTimeFormat: self.dateTimeFormat, nameDisplayOrder: self.nameDisplayOrder, nameSortOrder: self.nameSortOrder, reduceMotion: self.reduceMotion, largeEmoji: self.largeEmoji)
     }
-    
+
     public func withUpdate(listsFontSize: PresentationFontSize) -> PresentationData {
         return PresentationData(strings: self.strings, theme: self.theme, autoNightModeTriggered: self.autoNightModeTriggered, chatWallpaper: self.chatWallpaper, chatFontSize: self.chatFontSize, chatBubbleCorners: self.chatBubbleCorners, listsFontSize: listsFontSize, dateTimeFormat: self.dateTimeFormat, nameDisplayOrder: self.nameDisplayOrder, nameSortOrder: self.nameSortOrder, reduceMotion: self.reduceMotion, largeEmoji: self.largeEmoji)
     }
-    
+
     public static func ==(lhs: PresentationData, rhs: PresentationData) -> Bool {
         return lhs.strings === rhs.strings && lhs.theme === rhs.theme && lhs.autoNightModeTriggered == rhs.autoNightModeTriggered && lhs.chatWallpaper == rhs.chatWallpaper && lhs.chatFontSize == rhs.chatFontSize && lhs.chatBubbleCorners == rhs.chatBubbleCorners && lhs.listsFontSize == rhs.listsFontSize && lhs.dateTimeFormat == rhs.dateTimeFormat && lhs.reduceMotion == rhs.reduceMotion && lhs.largeEmoji == rhs.largeEmoji
     }
@@ -152,6 +162,22 @@ public func dictFromLocalization(_ value: Localization) -> [String: String] {
     return dict
 }
 
+// Merges WinterGram's bundled fork-string translations into a language's active string dictionary.
+// Telegram's server language packs don't carry our `WinterGram.*` keys, so seeding them here lets
+// the standard generated accessors (`strings.WinterGram_*`) resolve to localized text. Server
+// values always win, so an upstream key of the same name would never be shadowed.
+private func winterGramAugmentedDict(_ dict: [String: String], languageCode: String) -> [String: String] {
+    let seed = winterGramSeedStrings(languageCode: languageCode)
+    if seed.isEmpty {
+        return dict
+    }
+    var dict = dict
+    for (key, value) in seed where dict[key] == nil {
+        dict[key] = value
+    }
+    return dict
+}
+
 private func currentDateTimeFormat() -> PresentationDateTimeFormat {
     let locale = Locale.current
     let dateFormatter = DateFormatter()
@@ -160,14 +186,14 @@ private func currentDateTimeFormat() -> PresentationDateTimeFormat {
     dateFormatter.timeStyle = .medium
     dateFormatter.timeZone = TimeZone.current
     let dateString = dateFormatter.string(from: Date())
-    
+
     let timeFormat: PresentationTimeFormat
     if dateString.contains(dateFormatter.amSymbol) || dateString.contains(dateFormatter.pmSymbol) {
         timeFormat = .regular
     } else {
         timeFormat = .military
     }
-    
+
     let dateFormat: PresentationDateFormat
     var dateSeparator = "/"
     var dateSuffix = ""
@@ -219,7 +245,7 @@ public final class InitialPresentationDataAndSettings {
     public let stickerSettings: StickerSettings
     public let chatSettings: ChatSettings
     public let experimentalUISettings: ExperimentalUISettings
-    
+
     public init(presentationData: PresentationData, automaticMediaDownloadSettings: MediaAutoDownloadSettings, autodownloadSettings: AutodownloadSettings, callListSettings: CallListSettings, inAppNotificationSettings: InAppNotificationSettings, mediaInputSettings: MediaInputSettings, mediaDisplaySettings: MediaDisplaySettings, stickerSettings: StickerSettings, chatSettings: ChatSettings, experimentalUISettings: ExperimentalUISettings) {
         self.presentationData = presentationData
         self.automaticMediaDownloadSettings = automaticMediaDownloadSettings
@@ -248,7 +274,7 @@ public func currentPresentationDataAndSettings(accountManager: AccountManager<Te
         var contactSynchronizationSettings: PreferencesEntry?
         var stickerSettings: PreferencesEntry?
         var chatSettings: PreferencesEntry?
-        
+
         init(
             localizationSettings: PreferencesEntry?,
             presentationThemeSettings: PreferencesEntry?,
@@ -277,7 +303,7 @@ public func currentPresentationDataAndSettings(accountManager: AccountManager<Te
             self.chatSettings = chatSettings
         }
     }
-    
+
     return accountManager.transaction { transaction -> InternalData in
         let localizationSettings = transaction.getSharedData(SharedDataKeys.localizationSettings)
         let presentationThemeSettings = transaction.getSharedData(ApplicationSpecificSharedDataKeys.presentationThemeSettings)
@@ -291,7 +317,7 @@ public func currentPresentationDataAndSettings(accountManager: AccountManager<Te
         let contactSynchronizationSettings = transaction.getSharedData(ApplicationSpecificSharedDataKeys.contactSynchronizationSettings)
         let stickerSettings = transaction.getSharedData(ApplicationSpecificSharedDataKeys.stickerSettings)
         let chatSettings = transaction.getSharedData(ApplicationSpecificSharedDataKeys.chatSettings)
-        
+
         return InternalData(
             localizationSettings: localizationSettings,
             presentationThemeSettings: presentationThemeSettings,
@@ -315,74 +341,74 @@ public func currentPresentationDataAndSettings(accountManager: AccountManager<Te
         } else {
             localizationSettings = nil
         }
-        
+
         let themeSettings: PresentationThemeSettings
         if let current = internalData.presentationThemeSettings?.get(PresentationThemeSettings.self) {
             themeSettings = current
         } else {
             themeSettings = PresentationThemeSettings.defaultSettings
         }
-        
+
         let automaticMediaDownloadSettings: MediaAutoDownloadSettings
         if let value = internalData.automaticMediaDownloadSettings?.get(MediaAutoDownloadSettings.self) {
             automaticMediaDownloadSettings = value
         } else {
             automaticMediaDownloadSettings = MediaAutoDownloadSettings.defaultSettings
         }
-        
+
         let autodownloadSettings: AutodownloadSettings
         if let value = internalData.autodownloadSettings?.get(AutodownloadSettings.self) {
             autodownloadSettings = value
         } else {
             autodownloadSettings = .defaultSettings
         }
-        
+
         let callListSettings: CallListSettings
         if let value = internalData.callListSettings?.get(CallListSettings.self) {
             callListSettings = value
         } else {
             callListSettings = CallListSettings.defaultSettings
         }
-        
+
         let inAppNotificationSettings: InAppNotificationSettings
         if let value = internalData.inAppNotificationSettings?.get(InAppNotificationSettings.self) {
             inAppNotificationSettings = value
         } else {
             inAppNotificationSettings = InAppNotificationSettings.defaultSettings
         }
-        
+
         let mediaInputSettings: MediaInputSettings
         if let value = internalData.mediaInputSettings?.get(MediaInputSettings.self) {
             mediaInputSettings = value
         } else {
             mediaInputSettings = MediaInputSettings.defaultSettings
         }
-        
+
         let mediaDisplaySettings: MediaDisplaySettings
         if let value = internalData.mediaDisplaySettings?.get(MediaDisplaySettings.self) {
             mediaDisplaySettings = value
         } else {
             mediaDisplaySettings = MediaDisplaySettings.defaultSettings
         }
-        
+
         let stickerSettings: StickerSettings
         if let value = internalData.stickerSettings?.get(StickerSettings.self) {
             stickerSettings = value
         } else {
             stickerSettings = StickerSettings.defaultSettings
         }
-        
+
         let chatSettings: ChatSettings
         if let value = internalData.chatSettings?.get(ChatSettings.self) {
             chatSettings = value
         } else {
             chatSettings = ChatSettings.defaultSettings
         }
-        
+
         let experimentalUISettings: ExperimentalUISettings = internalData.experimentalUISettings?.get(ExperimentalUISettings.self) ?? ExperimentalUISettings.defaultSettings
-        
+
         let contactSettings: ContactSynchronizationSettings = internalData.contactSynchronizationSettings?.get(ContactSynchronizationSettings.self) ?? ContactSynchronizationSettings.defaultSettings
-        
+
         let effectiveTheme: PresentationThemeReference
         var preferredBaseTheme: TelegramBaseTheme?
         let parameters = AutomaticThemeSwitchParameters(settings: themeSettings.automaticThemeSwitchSetting)
@@ -390,7 +416,7 @@ public func currentPresentationDataAndSettings(accountManager: AccountManager<Te
         if automaticThemeShouldSwitchNow(parameters, systemUserInterfaceStyle: systemUserInterfaceStyle) {
             effectiveTheme = themeSettings.automaticThemeSwitchSetting.theme
             autoNightModeTriggered = true
-            
+
             if let baseTheme = themeSettings.themePreferredBaseTheme[effectiveTheme.index], [.night, .tinted].contains(baseTheme) {
                 preferredBaseTheme = baseTheme
             } else {
@@ -399,34 +425,34 @@ public func currentPresentationDataAndSettings(accountManager: AccountManager<Te
         } else {
             effectiveTheme = themeSettings.theme
             autoNightModeTriggered = false
-            
+
             if let baseTheme = themeSettings.themePreferredBaseTheme[effectiveTheme.index], [.classic, .day].contains(baseTheme) {
                 preferredBaseTheme = baseTheme
             }
         }
-        
+
         let effectiveColors = themeSettings.themeSpecificAccentColors[effectiveTheme.index]
         let theme = makePresentationTheme(mediaBox: accountManager.mediaBox, themeReference: effectiveTheme, baseTheme: preferredBaseTheme, accentColor: effectiveColors?.colorFor(baseTheme: preferredBaseTheme ?? .day), bubbleColors: effectiveColors?.customBubbleColors ?? [], baseColor: effectiveColors?.baseColor) ?? defaultPresentationTheme
-        
+
         var effectiveChatWallpaper: TelegramWallpaper = (themeSettings.themeSpecificChatWallpapers[coloredThemeIndex(reference: effectiveTheme, accentColor: effectiveColors)] ?? themeSettings.themeSpecificChatWallpapers[effectiveTheme.index]) ?? theme.chat.defaultWallpaper
         if case .builtin = effectiveChatWallpaper {
             effectiveChatWallpaper = defaultBuiltinWallpaper(data: .legacy, colors: legacyBuiltinWallpaperGradientColors.map(\.rgb))
         }
-        
+
         let dateTimeFormat = currentDateTimeFormat()
         let stringsValue: PresentationStrings
         if let localizationSettings = localizationSettings {
-            stringsValue = PresentationStrings(primaryComponent: PresentationStrings.Component(languageCode: localizationSettings.primaryComponent.languageCode, localizedName: localizationSettings.primaryComponent.localizedName, pluralizationRulesCode: localizationSettings.primaryComponent.customPluralizationCode, dict: dictFromLocalization(localizationSettings.primaryComponent.localization)), secondaryComponent: localizationSettings.secondaryComponent.flatMap({ PresentationStrings.Component(languageCode: $0.languageCode, localizedName: $0.localizedName, pluralizationRulesCode: $0.customPluralizationCode, dict: dictFromLocalization($0.localization)) }), groupingSeparator: dateTimeFormat.groupingSeparator)
+            stringsValue = PresentationStrings(primaryComponent: PresentationStrings.Component(languageCode: localizationSettings.primaryComponent.languageCode, localizedName: localizationSettings.primaryComponent.localizedName, pluralizationRulesCode: localizationSettings.primaryComponent.customPluralizationCode, dict: winterGramAugmentedDict(dictFromLocalization(localizationSettings.primaryComponent.localization), languageCode: localizationSettings.primaryComponent.languageCode)), secondaryComponent: localizationSettings.secondaryComponent.flatMap({ PresentationStrings.Component(languageCode: $0.languageCode, localizedName: $0.localizedName, pluralizationRulesCode: $0.customPluralizationCode, dict: winterGramAugmentedDict(dictFromLocalization($0.localization), languageCode: $0.languageCode)) }), groupingSeparator: dateTimeFormat.groupingSeparator)
         } else {
             stringsValue = defaultPresentationStrings
         }
         let nameDisplayOrder = contactSettings.nameDisplayOrder
         let nameSortOrder = currentPersonNameSortOrder()
-        
+
         let (chatFontSize, listsFontSize) = resolveFontSize(settings: themeSettings)
-        
-        let chatBubbleCorners = PresentationChatBubbleCorners(mainRadius: CGFloat(themeSettings.chatBubbleSettings.mainRadius), auxiliaryRadius: CGFloat(themeSettings.chatBubbleSettings.auxiliaryRadius), mergeBubbleCorners: themeSettings.chatBubbleSettings.mergeBubbleCorners)
-        
+
+        let chatBubbleCorners = PresentationChatBubbleCorners(mainRadius: winterGramEffectiveBubbleRadius(themeSettings.chatBubbleSettings.mainRadius), auxiliaryRadius: CGFloat(themeSettings.chatBubbleSettings.auxiliaryRadius), mergeBubbleCorners: themeSettings.chatBubbleSettings.mergeBubbleCorners)
+
         return InitialPresentationDataAndSettings(presentationData: PresentationData(strings: stringsValue, theme: theme, autoNightModeTriggered: autoNightModeTriggered, chatWallpaper: effectiveChatWallpaper, chatFontSize: chatFontSize, chatBubbleCorners: chatBubbleCorners, listsFontSize: listsFontSize, dateTimeFormat: dateTimeFormat, nameDisplayOrder: nameDisplayOrder, nameSortOrder: nameSortOrder, reduceMotion: themeSettings.reduceMotion, largeEmoji: themeSettings.largeEmoji), automaticMediaDownloadSettings: automaticMediaDownloadSettings, autodownloadSettings: autodownloadSettings, callListSettings: callListSettings, inAppNotificationSettings: inAppNotificationSettings, mediaInputSettings: mediaInputSettings, mediaDisplaySettings: mediaDisplaySettings, stickerSettings: stickerSettings, chatSettings: chatSettings, experimentalUISettings: experimentalUISettings)
     }
 }
@@ -451,7 +477,7 @@ private enum PreparedAutomaticThemeSwitchTrigger {
 private struct AutomaticThemeSwitchParameters {
     let trigger: PreparedAutomaticThemeSwitchTrigger
     let theme: PresentationThemeReference
-    
+
     init(settings: AutomaticThemeSwitchSetting) {
         let trigger: PreparedAutomaticThemeSwitchTrigger
         if settings.force {
@@ -513,12 +539,12 @@ private func automaticThemeShouldSwitch(_ settings: AutomaticThemeSwitchSetting,
         return Signal { subscriber in
             let parameters = AutomaticThemeSwitchParameters(settings: settings)
             subscriber.putNext(automaticThemeShouldSwitchNow(parameters, systemUserInterfaceStyle: systemUserInterfaceStyle))
-            
+
             let timer = SwiftSignalKit.Timer(timeout: 1.0, repeat: true, completion: {
                 subscriber.putNext(automaticThemeShouldSwitchNow(parameters, systemUserInterfaceStyle: systemUserInterfaceStyle))
             }, queue: Queue.mainQueue())
             timer.start()
-            
+
             return ActionDisposable {
                 timer.invalidate()
             }
@@ -551,11 +577,11 @@ public func automaticEnergyUsageShouldBeOn(settings: MediaAutoDownloadSettings) 
     } else {
         return Signal { subscriber in
             subscriber.putNext(automaticEnergyUsageShouldBeOnNow(settings: settings))
-            
+
             let observer = NotificationCenter.default.addObserver(forName: UIDevice.batteryLevelDidChangeNotification, object: nil, queue: OperationQueue.main, using: { _ in
                 subscriber.putNext(automaticEnergyUsageShouldBeOnNow(settings: settings))
             })
-            
+
             return ActionDisposable {
                 NotificationCenter.default.removeObserver(observer)
             }
@@ -731,15 +757,15 @@ public func updatedPresentationData(accountManager: AccountManager<TelegramAccou
         } else {
             themeSettings = PresentationThemeSettings.defaultSettings
         }
-        
+
         let contactSettings: ContactSynchronizationSettings = sharedData.entries[ApplicationSpecificSharedDataKeys.contactSynchronizationSettings]?.get(ContactSynchronizationSettings.self) ?? ContactSynchronizationSettings.defaultSettings
-        
+
         var currentColors = themeSettings.themeSpecificAccentColors[themeSettings.theme.index]
         if let colors = currentColors, colors.baseColor == .theme {
             currentColors = nil
         }
         let themeSpecificWallpaper = (themeSettings.themeSpecificChatWallpapers[coloredThemeIndex(reference: themeSettings.theme, accentColor: currentColors)] ?? themeSettings.themeSpecificChatWallpapers[themeSettings.theme.index])
-        
+
         let currentWallpaper: TelegramWallpaper
         if let themeSpecificWallpaper = themeSpecificWallpaper {
             currentWallpaper = themeSpecificWallpaper
@@ -747,7 +773,7 @@ public func updatedPresentationData(accountManager: AccountManager<TelegramAccou
             let theme = makePresentationTheme(mediaBox: accountManager.mediaBox, themeReference: themeSettings.theme, accentColor: currentColors?.color, bubbleColors: currentColors?.customBubbleColors ?? [], wallpaper: currentColors?.wallpaper, baseColor: currentColors?.baseColor) ?? defaultPresentationTheme
             currentWallpaper = theme.chat.defaultWallpaper
         }
-        
+
         return (.single(defaultServiceBackgroundColor)
         |> then(chatServiceBackgroundColor(wallpaper: currentWallpaper, mediaBox: accountManager.mediaBox)))
         |> mapToSignal { serviceBackgroundColor in
@@ -760,19 +786,19 @@ public func updatedPresentationData(accountManager: AccountManager<TelegramAccou
                         var effectiveTheme: PresentationThemeReference
                         var effectiveChatWallpaper = currentWallpaper
                         var effectiveColors = currentColors
-                        
+
                         var switchedToNightModeWallpaper = false
                         var preferredBaseTheme: TelegramBaseTheme?
                         if autoNightModeTriggered {
                             let automaticTheme = themeSettings.automaticThemeSwitchSetting.theme
                             effectiveColors = themeSettings.themeSpecificAccentColors[automaticTheme.index]
-                            
+
                             if automaticTheme == .builtin(.night) && effectiveColors == nil {
                                 effectiveColors = PresentationThemeAccentColor(baseColor: .blue)
                             }
-                            
+
                             let themeSpecificWallpaper = (themeSettings.themeSpecificChatWallpapers[coloredThemeIndex(reference: automaticTheme, accentColor: effectiveColors)] ?? themeSettings.themeSpecificChatWallpapers[automaticTheme.index])
-                            
+
                             if let themeSpecificWallpaper = themeSpecificWallpaper {
                                 effectiveChatWallpaper = themeSpecificWallpaper
                                 switchedToNightModeWallpaper = true
@@ -789,17 +815,17 @@ public func updatedPresentationData(accountManager: AccountManager<TelegramAccou
                                 preferredBaseTheme = baseTheme
                             }
                         }
-                        
+
                         if case .builtin = effectiveChatWallpaper {
                             effectiveChatWallpaper = defaultBuiltinWallpaper(data: .legacy, colors: legacyBuiltinWallpaperGradientColors.map(\.rgb))
                         }
-                        
+
                         if let colors = effectiveColors, colors.baseColor == .theme {
                             effectiveColors = nil
                         }
-                        
+
                         let themeValue = makePresentationTheme(mediaBox: accountManager.mediaBox, themeReference: effectiveTheme, baseTheme: preferredBaseTheme, accentColor: effectiveColors?.colorFor(baseTheme: preferredBaseTheme ?? .day), bubbleColors: effectiveColors?.customBubbleColors ?? [], wallpaper: effectiveColors?.wallpaper, baseColor: effectiveColors?.baseColor, serviceBackgroundColor: serviceBackgroundColor) ?? defaultPresentationTheme
-                        
+
                         if autoNightModeTriggered && !switchedToNightModeWallpaper {
                             switch effectiveChatWallpaper {
                                 case .builtin, .color, .gradient:
@@ -812,28 +838,28 @@ public func updatedPresentationData(accountManager: AccountManager<TelegramAccou
                                     break
                             }
                         }
-                        
+
                         let localizationSettings: LocalizationSettings?
                         if let current = sharedData.entries[SharedDataKeys.localizationSettings]?.get(LocalizationSettings.self) {
                             localizationSettings = current
                         } else {
                             localizationSettings = nil
                         }
-                        
+
                         let dateTimeFormat = currentDateTimeFormat()
                         let stringsValue: PresentationStrings
                         if let localizationSettings = localizationSettings {
-                            stringsValue = PresentationStrings(primaryComponent: PresentationStrings.Component(languageCode: localizationSettings.primaryComponent.languageCode, localizedName: localizationSettings.primaryComponent.localizedName, pluralizationRulesCode: localizationSettings.primaryComponent.customPluralizationCode, dict: dictFromLocalization(localizationSettings.primaryComponent.localization)), secondaryComponent: localizationSettings.secondaryComponent.flatMap({ PresentationStrings.Component(languageCode: $0.languageCode, localizedName: $0.localizedName, pluralizationRulesCode: $0.customPluralizationCode, dict: dictFromLocalization($0.localization)) }), groupingSeparator: dateTimeFormat.groupingSeparator)
+                            stringsValue = PresentationStrings(primaryComponent: PresentationStrings.Component(languageCode: localizationSettings.primaryComponent.languageCode, localizedName: localizationSettings.primaryComponent.localizedName, pluralizationRulesCode: localizationSettings.primaryComponent.customPluralizationCode, dict: winterGramAugmentedDict(dictFromLocalization(localizationSettings.primaryComponent.localization), languageCode: localizationSettings.primaryComponent.languageCode)), secondaryComponent: localizationSettings.secondaryComponent.flatMap({ PresentationStrings.Component(languageCode: $0.languageCode, localizedName: $0.localizedName, pluralizationRulesCode: $0.customPluralizationCode, dict: winterGramAugmentedDict(dictFromLocalization($0.localization), languageCode: $0.languageCode)) }), groupingSeparator: dateTimeFormat.groupingSeparator)
                         } else {
                             stringsValue = defaultPresentationStrings
                         }
                         let nameDisplayOrder = contactSettings.nameDisplayOrder
                         let nameSortOrder = currentPersonNameSortOrder()
-                        
+
                         let (chatFontSize, listsFontSize) = resolveFontSize(settings: themeSettings)
-                        
-                        let chatBubbleCorners = PresentationChatBubbleCorners(mainRadius: CGFloat(themeSettings.chatBubbleSettings.mainRadius), auxiliaryRadius: CGFloat(themeSettings.chatBubbleSettings.auxiliaryRadius), mergeBubbleCorners: themeSettings.chatBubbleSettings.mergeBubbleCorners)
-                        
+
+                        let chatBubbleCorners = PresentationChatBubbleCorners(mainRadius: winterGramEffectiveBubbleRadius(themeSettings.chatBubbleSettings.mainRadius), auxiliaryRadius: CGFloat(themeSettings.chatBubbleSettings.auxiliaryRadius), mergeBubbleCorners: themeSettings.chatBubbleSettings.mergeBubbleCorners)
+
                         return PresentationData(strings: stringsValue, theme: themeValue, autoNightModeTriggered: autoNightModeTriggered, chatWallpaper: effectiveChatWallpaper, chatFontSize: chatFontSize, chatBubbleCorners: chatBubbleCorners, listsFontSize: listsFontSize, dateTimeFormat: dateTimeFormat, nameDisplayOrder: nameDisplayOrder, nameSortOrder: nameSortOrder, reduceMotion: themeSettings.reduceMotion, largeEmoji: themeSettings.largeEmoji)
                     }
                 } else {
@@ -862,13 +888,13 @@ public func defaultPresentationData() -> PresentationData {
     let dateTimeFormat = currentDateTimeFormat()
     let nameDisplayOrder: PresentationPersonNameOrder = .firstLast
     let nameSortOrder = currentPersonNameSortOrder()
-    
+
     let themeSettings = PresentationThemeSettings.defaultSettings
-    
+
     let (chatFontSize, listsFontSize) = resolveFontSize(settings: themeSettings)
-    
-    let chatBubbleCorners = PresentationChatBubbleCorners(mainRadius: CGFloat(themeSettings.chatBubbleSettings.mainRadius), auxiliaryRadius: CGFloat(themeSettings.chatBubbleSettings.auxiliaryRadius), mergeBubbleCorners: themeSettings.chatBubbleSettings.mergeBubbleCorners)
-    
+
+    let chatBubbleCorners = PresentationChatBubbleCorners(mainRadius: winterGramEffectiveBubbleRadius(themeSettings.chatBubbleSettings.mainRadius), auxiliaryRadius: CGFloat(themeSettings.chatBubbleSettings.auxiliaryRadius), mergeBubbleCorners: themeSettings.chatBubbleSettings.mergeBubbleCorners)
+
     return PresentationData(strings: defaultPresentationStrings, theme: defaultPresentationTheme, autoNightModeTriggered: false, chatWallpaper: defaultPresentationTheme.chat.defaultWallpaper, chatFontSize: chatFontSize, chatBubbleCorners: chatBubbleCorners, listsFontSize: listsFontSize, dateTimeFormat: dateTimeFormat, nameDisplayOrder: nameDisplayOrder, nameSortOrder: nameSortOrder, reduceMotion: themeSettings.reduceMotion, largeEmoji: themeSettings.largeEmoji)
 }
 
@@ -876,11 +902,11 @@ public extension PresentationData {
     func withFontSizes(chatFontSize: PresentationFontSize, listsFontSize: PresentationFontSize) -> PresentationData {
         return PresentationData(strings: self.strings, theme: self.theme, autoNightModeTriggered: self.autoNightModeTriggered, chatWallpaper: self.chatWallpaper, chatFontSize: chatFontSize, chatBubbleCorners: self.chatBubbleCorners, listsFontSize: listsFontSize, dateTimeFormat: self.dateTimeFormat, nameDisplayOrder: self.nameDisplayOrder, nameSortOrder: self.nameSortOrder, reduceMotion: self.reduceMotion, largeEmoji: self.largeEmoji)
     }
-    
+
     func withChatBubbleCorners(_ chatBubbleCorners: PresentationChatBubbleCorners) -> PresentationData {
         return PresentationData(strings: self.strings, theme: self.theme, autoNightModeTriggered: self.autoNightModeTriggered, chatWallpaper: self.chatWallpaper, chatFontSize: self.chatFontSize, chatBubbleCorners: chatBubbleCorners, listsFontSize: self.listsFontSize, dateTimeFormat: self.dateTimeFormat, nameDisplayOrder: self.nameDisplayOrder, nameSortOrder: self.nameSortOrder, reduceMotion: self.reduceMotion, largeEmoji: self.largeEmoji)
     }
-    
+
     func withStrings(_ strings: PresentationStrings) -> PresentationData {
         return PresentationData(strings: strings, theme: self.theme, autoNightModeTriggered: self.autoNightModeTriggered, chatWallpaper: self.chatWallpaper, chatFontSize: self.chatFontSize, chatBubbleCorners: chatBubbleCorners, listsFontSize: self.listsFontSize, dateTimeFormat: self.dateTimeFormat, nameDisplayOrder: self.nameDisplayOrder, nameSortOrder: self.nameSortOrder, reduceMotion: self.reduceMotion, largeEmoji: self.largeEmoji)
     }

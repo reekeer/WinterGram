@@ -6,7 +6,9 @@ This file provides guidance to AI assistants when working with code in this repo
 
 The app is built using Bazel via the `Make.py` wrapper. There is no selective per-module build — the only supported invocation builds the full `Telegram/Telegram` target.
 
-**Command:**
+**Convenience wrapper:** `scripts/build-wintergram.sh` wraps the Make.py invocations for the WinterGram dev config and emits WinterGram-named IPAs in `build/`: `sim` (simulator), `sideload` / `livecontainer` (device), `all`, plus `--install`/`--run` (simulator-only: build + install into the booted Simulator), `--clean`, `--open-build-dir`. It sources `~/.zshrc` itself. App icons are regenerated from `branding/wnt-app-icon-*.png` by `scripts/generate-app-icons.sh`.
+
+**Raw command (canonical):**
 
 ```sh
 python3 build-system/Make/Make.py --overrideXcodeVersion \

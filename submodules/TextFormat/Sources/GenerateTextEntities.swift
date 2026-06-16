@@ -69,7 +69,7 @@ private enum CurrentEntityType {
     case hashtag
     case phoneNumber
     case timecode
-    
+
     var type: EnabledEntityTypes {
         switch self {
         case .command:
@@ -88,11 +88,11 @@ private enum CurrentEntityType {
 
 public struct EnabledEntityTypes: OptionSet {
     public var rawValue: Int32
-    
+
     public init(rawValue: Int32) {
         self.rawValue = rawValue
     }
-    
+
     public static let command = EnabledEntityTypes(rawValue: 1 << 0)
     public static let mention = EnabledEntityTypes(rawValue: 1 << 1)
     public static let hashtag = EnabledEntityTypes(rawValue: 1 << 2)
@@ -101,7 +101,7 @@ public struct EnabledEntityTypes: OptionSet {
     public static let timecode = EnabledEntityTypes(rawValue: 1 << 5)
     public static let external = EnabledEntityTypes(rawValue: 1 << 6)
     public static let internalUrl = EnabledEntityTypes(rawValue: 1 << 7)
-    
+
     public static let all: EnabledEntityTypes = [.command, .mention, .hashtag, .allUrl, .phoneNumber]
 }
 
@@ -114,7 +114,7 @@ private func commitEntity(_ utf16: String.UTF16View, _ type: CurrentEntityType, 
     for entity in entities {
         if entity.range.overlaps(indexRange) {
             if case .Spoiler = entity.type {
-                
+
             } else {
                 overlaps = true
                 break
@@ -135,7 +135,7 @@ private func commitEntity(_ utf16: String.UTF16View, _ type: CurrentEntityType, 
         case .timecode:
             entityType = .Custom(type: ApplicationSpecificEntityType.Timecode)
         }
-        
+
         if case .timecode = type {
             if let mediaDuration = mediaDuration, let timecode = parseTimecodeString(String(utf16[range])), timecode <= mediaDuration {
                 entities.append(MessageTextEntity(range: indexRange, type: entityType))
@@ -181,7 +181,7 @@ public func generateChatInputTextEntities(_ text: NSAttributedString, maxAnimate
             }
         }
     })
-    
+
     if generateLinks {
         for entity in generateTextEntities(text.string, enabledTypes: .allUrl) {
             if case .Url = entity.type {
@@ -189,10 +189,10 @@ public func generateChatInputTextEntities(_ text: NSAttributedString, maxAnimate
             }
         }
     }
-    
+
     while true {
         var hadReductions = false
-        
+
         scan: for i in 0 ..< entities.count {
             if case .BlockQuote = entities[i].type {
                 inner: for j in 0 ..< entities.count {
@@ -203,25 +203,25 @@ public func generateChatInputTextEntities(_ text: NSAttributedString, maxAnimate
                         if entities[i].range.upperBound == entities[j].range.lowerBound || entities[i].range.lowerBound == entities[j].range.upperBound {
                             entities[i].range = min(entities[i].range.lowerBound, entities[j].range.lowerBound) ..< max(entities[i].range.upperBound, entities[j].range.upperBound)
                             entities.remove(at: j)
-                            
+
                             hadReductions = true
                             break scan
                         }
                     }
                 }
-                
+
                 break scan
             }
         }
-        
+
         if !hadReductions {
             break
         }
     }
-    
+
     while true {
         var hadReductions = false
-        
+
         scan: for i in 0 ..< entities.count {
             if case let .Pre(language) = entities[i].type {
                 inner: for j in 0 ..< entities.count {
@@ -232,30 +232,30 @@ public func generateChatInputTextEntities(_ text: NSAttributedString, maxAnimate
                         if entities[i].range.upperBound == entities[j].range.lowerBound || entities[i].range.lowerBound == entities[j].range.upperBound {
                             entities[i].range = min(entities[i].range.lowerBound, entities[j].range.lowerBound) ..< max(entities[i].range.upperBound, entities[j].range.upperBound)
                             entities.remove(at: j)
-                            
+
                             hadReductions = true
                             break scan
                         }
                     }
                 }
-                
+
                 break scan
             }
         }
-        
+
         if !hadReductions {
             break
         }
     }
-    
+
     return entities
 }
 
 public func generateTextEntities(_ text: String, enabledTypes: EnabledEntityTypes, currentEntities: [MessageTextEntity] = []) -> [MessageTextEntity] {
     var entities: [MessageTextEntity] = currentEntities
-    
+
     let utf16 = text.utf16
-    
+
     var detector: NSDataDetector?
     if enabledTypes.contains(.phoneNumber) && (enabledTypes.contains(.allUrl) || enabledTypes.contains(.internalUrl)) {
         detector = dataAndPhoneNumberDetector
@@ -264,9 +264,9 @@ public func generateTextEntities(_ text: String, enabledTypes: EnabledEntityType
     } else if enabledTypes.contains(.allUrl) || enabledTypes.contains(.internalUrl) {
         detector = dataDetector
     }
-    
+
     let delimiterSet = enabledTypes.contains(.external) ? externalIdentifierDelimiterSet : identifierDelimiterSet
-    
+
     if let detector = detector {
         detector.enumerateMatches(in: text, options: [], range: NSMakeRange(0, utf16.count), using: { result, _, _ in
             if let result = result {
@@ -294,7 +294,7 @@ public func generateTextEntities(_ text: String, enabledTypes: EnabledEntityType
                                     }
                                 }
                             }
-                            
+
                             type = .Url
                         } else {
                             type = .PhoneNumber
@@ -305,10 +305,10 @@ public func generateTextEntities(_ text: String, enabledTypes: EnabledEntityType
             }
         })
     }
-    
+
     var index = utf16.startIndex
     var currentEntity: (CurrentEntityType, Range<String.UTF16View.Index>)?
-    
+
     var previousScalar: UnicodeScalar?
     while index != utf16.endIndex {
         let c = utf16[index]
@@ -346,7 +346,7 @@ public func generateTextEntities(_ text: String, enabledTypes: EnabledEntityType
                 }
                 currentEntity = (.hashtag, index ..< index)
             }
-            
+
             if notFound {
                 if let (type, range) = currentEntity {
                     switch type {
@@ -380,16 +380,16 @@ public func generateTextEntities(_ text: String, enabledTypes: EnabledEntityType
     if let (type, range) = currentEntity {
         commitEntity(utf16, type, range, enabledTypes, &entities)
     }
-    
+
     return entities
 }
 
 public func addLocallyGeneratedEntities(_ text: String, enabledTypes: EnabledEntityTypes, entities: [MessageTextEntity], mediaDuration: Double? = nil) -> [MessageTextEntity]? {
     var resultEntities = entities
-    
+
     var hasDigits = false
     var hasColons = false
-    
+
     let detectPhoneNumbers = enabledTypes.contains(.phoneNumber)
     let detectTimecodes = enabledTypes.contains(.timecode)
     if detectPhoneNumbers || detectTimecodes {
@@ -409,7 +409,7 @@ public func addLocallyGeneratedEntities(_ text: String, enabledTypes: EnabledEnt
             }
         }
     }
-    
+
     if hasDigits || hasColons {
         if let phoneNumberDetector = phoneNumberDetector, detectPhoneNumbers {
             let utf16 = text.utf16
@@ -428,10 +428,10 @@ public func addLocallyGeneratedEntities(_ text: String, enabledTypes: EnabledEnt
         if hasColons && detectTimecodes {
             let utf16 = text.utf16
             let delimiterSet = timecodeDelimiterSet
-            
+
             var index = utf16.startIndex
             var currentEntity: (CurrentEntityType, Range<String.UTF16View.Index>)?
-            
+
             var previousScalar: UnicodeScalar?
             while index != utf16.endIndex {
                 let c = utf16[index]
@@ -446,7 +446,7 @@ public func addLocallyGeneratedEntities(_ text: String, enabledTypes: EnabledEnt
                             currentEntity = (.timecode, index ..< index)
                         }
                     }
-                    
+
                     if notFound {
                         if let (type, range) = currentEntity {
                             switch type {
@@ -469,13 +469,32 @@ public func addLocallyGeneratedEntities(_ text: String, enabledTypes: EnabledEnt
             }
         }
     }
-    
+
+    // WinterGram: link "id<digits>" / "@id<digits>" (>= 6 digits) to the user's profile via
+    // wnt://profile?id=. Overrides any overlapping mention/url entity the @ may have produced.
+    if let regex = winterGramIdMentionRegex {
+        let nsText = text as NSString
+        regex.enumerateMatches(in: text, options: [], range: NSRange(location: 0, length: nsText.length), using: { match, _, _ in
+            guard let match = match, match.numberOfRanges >= 2 else {
+                return
+            }
+            let fullRange = match.range
+            let digits = nsText.substring(with: match.range(at: 1))
+            let entityRange = fullRange.location ..< (fullRange.location + fullRange.length)
+            resultEntities.removeAll(where: { $0.range.overlaps(entityRange) })
+            resultEntities.append(MessageTextEntity(range: entityRange, type: .TextUrl(url: "wnt://profile?id=\(digits)")))
+        })
+    }
+
     if resultEntities.count != entities.count {
         return resultEntities
     } else {
         return nil
     }
 }
+
+// WinterGram: matches "id<digits>" or "@id<digits>" (>= 6 digits) not preceded by a word character.
+private let winterGramIdMentionRegex: NSRegularExpression? = try? NSRegularExpression(pattern: "(?<![A-Za-z0-9_])@?id(\\d{6,})", options: [])
 
 public func parseTimecodeString(_ string: String?) -> Double? {
     if let string = string, string.rangeOfCharacter(from: validTimecodeSet.inverted) == nil {

@@ -8,11 +8,11 @@ private typealias SignalKitTimer = SwiftSignalKit.Timer
 
 private final class ManagedAutoremoveMessageOperationsHelper {
     var entry: (TimestampBasedMessageAttributesEntry, MetaDisposable)?
-    
+
     func update(_ head: TimestampBasedMessageAttributesEntry?) -> (disposeOperations: [Disposable], beginOperations: [(TimestampBasedMessageAttributesEntry, MetaDisposable)]) {
         var disposeOperations: [Disposable] = []
         var beginOperations: [(TimestampBasedMessageAttributesEntry, MetaDisposable)] = []
-        
+
         if self.entry?.0.index != head?.index {
             if let (_, disposable) = self.entry {
                 self.entry = nil
@@ -24,10 +24,10 @@ private final class ManagedAutoremoveMessageOperationsHelper {
                 beginOperations.append((head, disposable))
             }
         }
-        
+
         return (disposeOperations, beginOperations)
     }
-    
+
     func reset() -> [Disposable] {
         if let entry = entry {
             return [entry.1]
@@ -40,12 +40,12 @@ private final class ManagedAutoremoveMessageOperationsHelper {
 func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRemove: Bool) -> Signal<Void, NoError> {
     return Signal { _ in
         let helper = Atomic(value: ManagedAutoremoveMessageOperationsHelper())
-        
+
         let timeOffsetOnce = Signal<Double, NoError> { subscriber in
             subscriber.putNext(network.globalTimeDifference)
             return EmptyDisposable
         }
-        
+
         let timeOffset = (
             timeOffsetOnce
             |> then(
@@ -67,11 +67,11 @@ func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRe
             let (disposeOperations, beginOperations) = helper.with { helper -> (disposeOperations: [Disposable], beginOperations: [(TimestampBasedMessageAttributesEntry, MetaDisposable)]) in
                 return helper.update(view.head)
             }
-            
+
             for disposable in disposeOperations {
                 disposable.dispose()
             }
-            
+
             for (entry, disposable) in beginOperations {
                 let timestamp = CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970 + timeOffset
                 let delay = max(0.0, Double(entry.timestamp) - timestamp)
@@ -82,7 +82,17 @@ func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRe
                     Logger.shared.log("Autoremove", "Performing autoremove for \(entry.messageId), isRemove: \(isRemove)")
 
                     if let message = transaction.getMessage(entry.messageId) {
-                        if message.id.peerId.namespace == Namespaces.Peer.SecretChat || isRemove {
+                        if currentWinterGramCoreSettings.saveSelfDestructMessages && message.attributes.contains(where: { $0 is AutoremoveTimeoutMessageAttribute || $0 is AutoclearTimeoutMessageAttribute }) {
+                            transaction.updateMessage(message.id, update: { currentMessage in
+                                var storeForwardInfo: StoreMessageForwardInfo?
+                                if let forwardInfo = currentMessage.forwardInfo {
+                                    storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
+                                }
+                                let updatedAttributes = currentMessage.attributes.filter { !($0 is AutoremoveTimeoutMessageAttribute || $0 is AutoclearTimeoutMessageAttribute) }
+                                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: updatedAttributes, media: currentMessage.media))
+                            })
+                            Logger.shared.log("Autoremove", "Preserved self-destruct message \(entry.messageId)")
+                        } else if message.id.peerId.namespace == Namespaces.Peer.SecretChat || isRemove {
                             _internal_deleteMessages(transaction: transaction, mediaBox: postbox.mediaBox, ids: [entry.messageId])
                         } else {
                             transaction.updateMessage(message.id, update: { currentMessage in
@@ -122,7 +132,7 @@ func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRe
                 disposable.set(signal.start())
             }
         })
-        
+
         return ActionDisposable {
             disposable.dispose()
             let disposables = helper.with { helper -> [Disposable] in
@@ -141,7 +151,7 @@ func managedAutoexpireStoryOperations(network: Network, postbox: Postbox) -> Sig
             subscriber.putNext(network.globalTimeDifference)
             return EmptyDisposable
         }
-        
+
         let timeOffset = (
             timeOffsetOnce
             |> then(
@@ -156,7 +166,7 @@ func managedAutoexpireStoryOperations(network: Network, postbox: Postbox) -> Sig
         |> distinctUntilChanged
 
         Logger.shared.log("Autoexpire stories", "starting")
-        
+
         let currentDisposable = MetaDisposable()
 
         let disposable = combineLatest(timeOffset, postbox.combinedView(keys: [PostboxViewKey.storyExpirationTimeItems])).start(next: { timeOffset, views in
@@ -164,16 +174,16 @@ func managedAutoexpireStoryOperations(network: Network, postbox: Postbox) -> Sig
                 currentDisposable.set(nil)
                 return
             }
-            
+
             let timestamp = CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970 + timeOffset
             let delay = max(0.0, Double(topItem.expirationTimestamp) - timestamp)
-            
+
             let signal = Signal<Void, NoError>.complete()
             |> suspendAwareDelay(delay, queue: Queue.concurrentDefaultQueue())
             |> then(postbox.transaction { transaction -> Void in
                 var idsByPeerId: [PeerId: [Int32]] = [:]
                 let timestamp = Int32(CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970 + timeOffset)
-                
+
                 for id in transaction.getExpiredStoryIds(belowTimestamp: timestamp + 3) {
                     if idsByPeerId[id.peerId] == nil {
                         idsByPeerId[id.peerId] = [id.id]
@@ -181,17 +191,17 @@ func managedAutoexpireStoryOperations(network: Network, postbox: Postbox) -> Sig
                         idsByPeerId[id.peerId]?.append(id.id)
                     }
                 }
-                
+
                 for (peerId, ids) in idsByPeerId {
                     var items = transaction.getStoryItems(peerId: peerId)
                     items.removeAll(where: { ids.contains($0.id) })
                     transaction.setStoryItems(peerId: peerId, items: items)
                 }
             })
-            
+
             currentDisposable.set(signal.start())
         })
-        
+
         return ActionDisposable {
             disposable.dispose()
             currentDisposable.dispose()

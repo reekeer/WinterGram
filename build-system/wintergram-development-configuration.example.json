@@ -1,0 +1,14 @@
+{
+	"bundle_id": "dev.reekeer.wintergram",
+	"api_id": "2040",
+	"api_hash": "b18441a1ff607e10a989891a5462e627",
+	"team_id": "0000000000",
+	"app_center_id": "0",
+	"is_internal_build": "true",
+	"is_appstore_build": "false",
+	"appstore_id": "0",
+	"app_specific_url_scheme": "wnt",
+	"premium_iap_product_id": "",
+	"enable_siri": false,
+	"enable_icloud": false
+}

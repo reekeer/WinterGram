@@ -317,21 +317,25 @@ filegroup(
 )
 
 alternate_icon_folders = [
-    "BlackIcon",
     "BlackClassicIcon",
     "BlackFilledIcon",
-    "BlueIcon",
+    "BlackIcon",
     "BlueClassicIcon",
     "BlueFilledIcon",
-    "WhiteFilledIcon",
+    "BlueIcon",
     "New1",
     "New2",
     "Premium",
     "PremiumBlack",
     "PremiumTurbo",
+    "WinterGramDark",
+    "WinterGramDeveloper",
+    "WinterGramHouseDark",
+    "WinterGramHouseLight",
+    "WinterGramLight",
 ]
 
-composer_icon_folders = ["Telegram"]
+composer_icon_folders = []
 
 [
     filegroup(
@@ -434,6 +438,16 @@ plist_fragment(
                 <string>tonsite</string>
             </array>
         </dict>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleURLName</key>
+            <string>{telegram_bundle_id}.wnt</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>wnt</string>
+            </array>
+        </dict>
     </array>
     """.format(
         telegram_bundle_id = telegram_bundle_id,
@@ -523,6 +537,26 @@ associated_domains_fragment = "" if telegram_bundle_id not in official_bundle_id
     <string>webcredentials:t.me</string>
     <string>webcredentials:telegram.org</string>
 </array>
+"""
+
+background_modes_fragment = """
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+        <string>location</string>
+        <string>remote-notification</string>
+        <string>voip</string>
+        <string>processing</string>
+    </array>
+""" if telegram_aps_environment != "" else """
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+        <string>location</string>
+        <string>processing</string>
+    </array>
 """
 
 siri_fragment = "" if not telegram_enable_siri else """
@@ -629,7 +663,7 @@ plist_fragment(
     template =
     """
     <key>CFBundleDisplayName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     """
 )
 
@@ -955,14 +989,14 @@ ios_framework(
 plist_fragment(
     name = "ShareInfoPlist",
     extension = "plist",
-    template = 
+    template =
     """
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.Share</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1047,14 +1081,14 @@ ios_extension(
 plist_fragment(
     name = "NotificationContentInfoPlist",
     extension = "plist",
-    template = 
+    template =
     """
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.NotificationContent</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1154,14 +1188,14 @@ ios_extension(
 plist_fragment(
     name = "WidgetInfoPlist",
     extension = "plist",
-    template = 
+    template =
     """
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.Widget</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1267,14 +1301,14 @@ ios_extension(
 plist_fragment(
     name = "IntentsInfoPlist",
     extension = "plist",
-    template = 
+    template =
     """
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.SiriIntents</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1398,14 +1432,14 @@ ios_extension(
 plist_fragment(
     name = "BroadcastUploadInfoPlist",
     extension = "plist",
-    template = 
+    template =
     """
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.BroadcastUpload</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1492,14 +1526,14 @@ ios_extension(
 plist_fragment(
     name = "NotificationServiceInfoPlist",
     extension = "plist",
-    template = 
+    template =
     """
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.NotificationService</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
@@ -1555,7 +1589,7 @@ ios_extension(
 plist_fragment(
     name = "TelegramInfoPlist",
     extension = "plist",
-    template = 
+    template =
     """
     <key>BGTaskSchedulerPermittedIdentifiers</key>
     <array>
@@ -1568,11 +1602,11 @@ plist_fragment(
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>WinterGram</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
@@ -1629,17 +1663,17 @@ plist_fragment(
     <key>NSCameraUsageDescription</key>
     <string>We need this so that you can take and share photos and videos.</string>
     <key>NSContactsUsageDescription</key>
-    <string>Telegram stores your contacts heavily encrypted in the cloud to let you connect with your friends across all your devices.</string>
+    <string>WinterGram stores your contacts heavily encrypted in the cloud to let you connect with your friends across all your devices.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>You can use Face ID to unlock the app.</string>
     <key>NSLocationAlwaysUsageDescription</key>
-    <string>When you send your location to your friends, Telegram needs access to show them a map. You also need this to send locations from an Apple Watch.</string>
+    <string>When you send your location to your friends, WinterGram needs access to show them a map. You also need this to send locations from an Apple Watch.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>When you send your location to your friends, Telegram needs access to show them a map.</string>
+    <string>When you send your location to your friends, WinterGram needs access to show them a map.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>We need this so that you can record and share voice messages and videos with sound.</string>
     <key>NSMotionUsageDescription</key>
-    <string>When you send your location to your friends, Telegram needs access to show them a map.</string>
+    <string>When you send your location to your friends, WinterGram needs access to show them a map.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>We need this so that you can share photos and videos from your photo library.</string>
     <key>NSPhotoLibraryUsageDescription</key>
@@ -1658,15 +1692,7 @@ plist_fragment(
         <string>AremacFS-Regular.otf</string>
         <string>AremacFS-Semibold.otf</string>
     </array>
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>audio</string>
-        <string>fetch</string>
-        <string>location</string>
-        <string>remote-notification</string>
-        <string>voip</string>
-        <string>processing</string>
-    </array>
+{background_modes_fragment}
     <key>UIDeviceFamily</key>
     <array>
         <integer>1</integer>
@@ -1707,13 +1733,13 @@ plist_fragment(
                 <string>public.data</string>
             </array>
             <key>UTTypeDescription</key>
-            <string>Telegram iOS Color Theme File</string>
+            <string>WinterGram iOS Color Theme File</string>
             <key>UTTypeIconFiles</key>
             <array>
                 <string>BlueIcon@3x.png</string>
             </array>
             <key>UTTypeIdentifier</key>
-            <string>org.telegram.Telegram-iOS.theme</string>
+            <string>dev.reekeer.wintergram.theme</string>
             <key>UTTypeTagSpecification</key>
             <dict>
                 <key>public.filename-extension</key>
@@ -1729,6 +1755,7 @@ plist_fragment(
     <true/>
     """.format(
         telegram_bundle_id = telegram_bundle_id,
+        background_modes_fragment = background_modes_fragment,
     )
 )
 
@@ -1777,12 +1804,13 @@ ios_application(
         ":UrlTypesInfoPlist",
     ],
     app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
+    primary_app_icon = "WinterGramDarkIcon",
     alternate_icons = [
         ":{}".format(name) for name in alternate_icon_folders
     ],
     resources = [
         ":LaunchScreen",
-        #":DefaultAppIcon",
+        ":DefaultAppIcon",
     ],
     frameworks = [
         ":MtProtoKitFramework",
@@ -1845,9 +1873,9 @@ filegroup(
 )
 
 ios_test_runner(
-    name = "iPhone-17__26.2",
+    name = "iPhone-17__26.5",
     device_type = "iPhone 17",
-    os_version = "26.2",
+    os_version = "26.5",
 )
 
 
@@ -1864,7 +1892,7 @@ ios_ui_test_suite(
     bundle_id = "org.telegram.Telegram-iOS-uitests",
     minimum_os_version = minimum_os_version,
     runners = [
-        ":iPhone-17__26.2",
+        ":iPhone-17__26.5",
     ],
     tags = ["manual"],
     test_host = "//Telegram",

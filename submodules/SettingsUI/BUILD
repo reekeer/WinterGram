@@ -20,6 +20,7 @@ swift_library(
         "//submodules/AccountContext:AccountContext",
         "//submodules/ActivityIndicator:ActivityIndicator",
         "//submodules/AlertUI:AlertUI",
+        "//submodules/PromptUI:PromptUI",
         "//submodules/PresentationDataUtils:PresentationDataUtils",
         "//submodules/AvatarNode:AvatarNode",
         "//submodules/CallListUI:CallListUI",

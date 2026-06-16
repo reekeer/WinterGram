@@ -13,13 +13,13 @@ public struct ChatTranslationState: Codable {
         case toLang
         case isEnabled
     }
-    
+
     public let baseLang: String
     public let fromLang: String
     public let timestamp: Int32?
     public let toLang: String?
     public let isEnabled: Bool
-    
+
     public init(
         baseLang: String,
         fromLang: String,
@@ -33,17 +33,17 @@ public struct ChatTranslationState: Codable {
         self.toLang = toLang
         self.isEnabled = isEnabled
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
+
         self.baseLang = try container.decode(String.self, forKey: .baseLang)
         self.fromLang = try container.decode(String.self, forKey: .fromLang)
         self.timestamp = try container.decodeIfPresent(Int32.self, forKey: .timestamp)
         self.toLang = try container.decodeIfPresent(String.self, forKey: .toLang)
         self.isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
@@ -63,7 +63,7 @@ public struct ChatTranslationState: Codable {
             isEnabled: self.isEnabled
         )
     }
-    
+
     public func withIsEnabled(_ isEnabled: Bool) -> ChatTranslationState {
         return ChatTranslationState(
             baseLang: self.baseLang,
@@ -85,7 +85,7 @@ private func cachedChatTranslationState(engine: TelegramEngine, peerId: EnginePe
         key = EngineDataBuffer(length: 8)
         key.setInt64(0, value: peerId.id._internalGetInt64Value())
     }
-    
+
     return engine.data.subscribe(TelegramEngine.EngineData.Item.ItemCache.Item(collectionId: ApplicationSpecificItemCacheCollectionId.translationState, id: key))
     |> map { entry -> ChatTranslationState? in
         return entry?.get(ChatTranslationState.self)
@@ -102,7 +102,7 @@ private func updateChatTranslationState(engine: TelegramEngine, peerId: EnginePe
         key = EngineDataBuffer(length: 8)
         key.setInt64(0, value: peerId.id._internalGetInt64Value())
     }
-    
+
     if let state {
         return engine.itemCache.put(collectionId: ApplicationSpecificItemCacheCollectionId.translationState, id: key, item: state)
     } else {
@@ -120,7 +120,7 @@ public func updateChatTranslationStateInteractively(engine: TelegramEngine, peer
         key = EngineDataBuffer(length: 8)
         key.setInt64(0, value: peerId.id._internalGetInt64Value())
     }
-    
+
     return engine.data.get(TelegramEngine.EngineData.Item.ItemCache.Item(collectionId: ApplicationSpecificItemCacheCollectionId.translationState, id: key))
     |> map { entry -> ChatTranslationState? in
         return entry?.get(ChatTranslationState.self)
@@ -161,7 +161,7 @@ public func translateMessageIds(context: AccountContext, messageIds: [EngineMess
                 if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == toLang {
                     continue
                 }
-                
+
                 if !message.text.isEmpty {
                     if !messageIdsSet.contains(messageId) {
                         messageIdsToTranslate.append(messageId)
@@ -185,7 +185,7 @@ public func translateMessageIds(context: AccountContext, messageIds: [EngineMess
                 }
             }
         }
-        
+
         let translationConfiguration = TranslationConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
         var enableLocalIfPossible = false
         switch translationConfiguration.auto {
@@ -195,6 +195,18 @@ public func translateMessageIds(context: AccountContext, messageIds: [EngineMess
             }
         default:
             break
+        }
+        // WinterGram: route through the chosen provider. For anything other than the
+        // native Telegram backend we hand the texts to the installed external service.
+        switch currentWinterGramSettings.translationProvider {
+        case .telegram:
+            break
+        case .google, .yandex:
+            enableLocalIfPossible = true
+        case .system:
+            if #available(iOS 18.0, *) {
+                enableLocalIfPossible = true
+            }
         }
         return context.engine.messages.translateMessages(messageIds: messageIdsToTranslate, fromLang: fromLang, toLang: toLang, enableLocalIfPossible: enableLocalIfPossible)
         |> `catch` { _ -> Signal<Never, NoError> in
@@ -207,13 +219,13 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
     if peerId.id == EnginePeer.Id.Id._internalFromInt64Value(777000) {
         return .single(nil)
     }
-    
+
     guard canTranslateChats(context: context) else {
         return .single(nil)
     }
-    
+
     let loggingEnabled = context.sharedContext.immediateExperimentalUISettings.logLanguageRecognition
-    
+
     if #available(iOS 12.0, *) {
         var baseLang = context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode
         let rawSuffix = "-raw"
@@ -229,10 +241,12 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
             context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.AutoTranslateEnabled(id: peerId))
         )
         |> mapToSignal { settings, autoTranslateEnabled in
-            if !settings.translateChats && !autoTranslateEnabled {
+            // WinterGram: "Message Translation" makes the translate panel available in every chat.
+            let winterGramAutoTranslate = currentWinterGramSettings.translateMessages
+            if !settings.translateChats && !autoTranslateEnabled && !winterGramAutoTranslate {
                 return .single(nil)
             }
-            
+
             var dontTranslateLanguages = Set<String>()
             if let ignoredLanguages = settings.ignoredLanguages {
                 dontTranslateLanguages = Set(ignoredLanguages)
@@ -242,7 +256,7 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
                     dontTranslateLanguages.insert(language)
                 }
             }
-            
+
             return cachedChatTranslationState(engine: context.engine, peerId: peerId, threadId: threadId)
             |> mapToSignal { cached in
                 let currentTime = Int32(CFAbsoluteTimeGetCurrent() + kCFAbsoluteTimeIntervalSince1970)
@@ -262,7 +276,7 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
                         |> take(1)
                         |> map { messageHistoryView, _, _ -> ChatTranslationState? in
                             let messages = messageHistoryView.entries.map(\.message)
-                            
+
                             if loggingEnabled {
                                 Logger.shared.log("ChatTranslation", "Start language recognizing for \(peerId)")
                             }
@@ -300,15 +314,15 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
                                                 }
                                             }
                                         }
-                                        
+
                                         if message.text.count < 10 {
                                             continue
                                         }
-                                        
+
                                         languageRecognizer.processString(text)
                                         let hypotheses = languageRecognizer.languageHypotheses(withMaximum: 4)
                                         languageRecognizer.reset()
-                                        
+
                                         let filteredLanguages = hypotheses.filter { supportedTranslationLanguages.contains(normalizeTranslationLanguage($0.key.rawValue)) }.sorted(by: { $0.value > $1.value })
                                         if let language = filteredLanguages.first {
                                             let fromLang = normalizeTranslationLanguage(language.key.rawValue)
@@ -325,7 +339,7 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
                                     break
                                 }
                             }
-                                                        
+
                             var mostFrequent: (String, Int)?
                             for (lang, count) in fromLangs {
                                 if let current = mostFrequent {
@@ -340,16 +354,17 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
                             if loggingEnabled {
                                 Logger.shared.log("ChatTranslation", "Ended with: \(fromLang)")
                             }
-                            
+
                             let isEnabled: Bool
                             if let currentIsEnabled = cached?.isEnabled {
                                 isEnabled = currentIsEnabled
-                            } else if autoTranslateEnabled {
+                            } else if autoTranslateEnabled || winterGramAutoTranslate {
+                                // WinterGram: auto-translate incoming foreign-language messages.
                                 isEnabled = true
                             } else {
                                 isEnabled = false
                             }
-                            
+
                             let state = ChatTranslationState(
                                 baseLang: baseLang,
                                 fromLang: fromLang,

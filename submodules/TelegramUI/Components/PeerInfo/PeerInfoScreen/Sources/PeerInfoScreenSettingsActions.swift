@@ -22,7 +22,7 @@ extension PeerInfoScreenNode {
             guard let strongSelf = self, let navigationController = strongSelf.controller?.navigationController as? NavigationController else {
                 return
             }
-            
+
             if strongSelf.isMyProfile {
                 navigationController.pushViewController(c)
             } else {
@@ -35,7 +35,7 @@ extension PeerInfoScreenNode {
                     }
                 }
                 updatedControllers.append(c)
-                
+
                 var animated = true
                 if let validLayout = strongSelf.validLayout?.0, case .regular = validLayout.metrics.widthClass {
                     animated = false
@@ -136,7 +136,7 @@ extension PeerInfoScreenNode {
                 }
                 let _ = self.context.engine.notices.dismissServerProvidedSuggestion(suggestion: ServerProvidedSuggestion.setupPassword.id).startStandalone()
             })
-            
+
             let controller = self.context.sharedContext.makeSetupTwoFactorAuthController(context: self.context)
             push(controller)
         case .dataAndStorage:
@@ -174,7 +174,7 @@ extension PeerInfoScreenNode {
         case .support:
             let supportPeer = Promise<EnginePeer.Id?>()
             supportPeer.set(context.engine.peers.supportPeerId())
-            
+
             self.controller?.present(textAlertController(context: self.context, updatedPresentationData: self.controller?.updatedPresentationData, title: nil, text: self.presentationData.strings.Settings_FAQ_Intro, actions: [
                 TextAlertAction(type: .genericAction, title: presentationData.strings.Settings_FAQ_Button, action: { [weak self] in
                     self?.openFaq()
@@ -230,7 +230,7 @@ extension PeerInfoScreenNode {
                         count += 1
                     }
                 }
-                
+
                 if count >= maximumAvailableAccounts {
                     var replaceImpl: ((ViewController) -> Void)?
                     let controller = PremiumLimitScreen(context: strongSelf.context, subject: .accounts, count: Int32(count), action: {
@@ -272,7 +272,7 @@ extension PeerInfoScreenNode {
         case .powerSaving:
             push(energySavingSettingsScreen(context: self.context))
         case .winterGram:
-            push(winterGramSettingsController(context: self.context))
+            push(winterGramMainSettingsController(context: self.context))
         case .businessSetup:
             guard let controller = self.controller, !controller.presentAccountFrozenInfoIfNeeded() else {
                 return
@@ -305,10 +305,10 @@ extension PeerInfoScreenNode {
             self.didSetCachedFaq = true
         }
     }
-    
+
     func openFaq(anchor: String? = nil) {
         self.setupFaqIfNeeded()
-        
+
         let presentationData = self.presentationData
         let progressSignal = Signal<Never, NoError> { [weak self] subscriber in
             let controller = OverlayStatusController(theme: presentationData.theme, type: .loading(cancelled: nil))
@@ -322,7 +322,7 @@ extension PeerInfoScreenNode {
         |> runOn(Queue.mainQueue())
         |> delay(0.15, queue: Queue.mainQueue())
         let progressDisposable = progressSignal.start()
-        
+
         let _ = (self.cachedFaq.get()
         |> filter { $0 != nil }
         |> take(1)
@@ -341,11 +341,11 @@ extension PeerInfoScreenNode {
             }
         })
     }
-    
+
     private func openTips() {
         let controller = OverlayStatusController(theme: self.presentationData.theme, type: .loading(cancelled: nil))
         self.controller?.present(controller, in: .window(.root))
-        
+
         let context = self.context
         let navigationController = self.controller?.navigationController as? NavigationController
         self.tipsPeerDisposable.set((self.context.engine.peers.resolvePeerByName(name: self.presentationData.strings.Settings_TipsUsername, referrer: nil)

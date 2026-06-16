@@ -5,6 +5,9 @@ import AccountContext
 import SwiftSignalKit
 import TelegramCore
 import AvatarNode
+import TelegramUIPreferences
+import PresentationDataUtils
+import AlertUI
 
 public extension StoryContainerScreen {
     static func openArchivedStories(context: AccountContext, parentController: ViewController, avatarNode: AvatarNode, sharedProgressDisposable: MetaDisposable?) {
@@ -34,7 +37,7 @@ public extension StoryContainerScreen {
                 )
                 avatarNode.isHidden = true
             }
-            
+
             let storyContainerScreen = StoryContainerScreen(
                 context: context,
                 content: storyContent,
@@ -80,13 +83,13 @@ public extension StoryContainerScreen {
             parentController?.push(storyContainerScreen)
         }
         |> ignoreValues
-        
+
         let disposable = avatarNode.pushLoadingStatus(signal: signal)
         if let sharedProgressDisposable {
             sharedProgressDisposable.set(disposable)
         }
     }
-    
+
     static func openPeerStories(context: AccountContext, peerId: EnginePeer.Id, parentController: ViewController, avatarNode: AvatarNode?, sharedProgressDisposable: MetaDisposable? = nil) {
         return openPeerStoriesCustom(
             context: context,
@@ -158,7 +161,7 @@ public extension StoryContainerScreen {
             }
         )
     }
-    
+
     static func openPeerStoriesCustom(
         context: AccountContext,
         peerId: EnginePeer.Id,
@@ -173,6 +176,46 @@ public extension StoryContainerScreen {
         setProgress: @escaping (Signal<Never, NoError>) -> Void,
         completion: @escaping (StoryContainerScreen) -> Void = { _ in }
     ) {
+        // WinterGram: optionally offer to enable ghost story-viewing before opening, so the
+        // author isn't marked. Only when the toggle is on and stories aren't already hidden.
+        if currentWinterGramSettings.suggestGhostBeforeStory && !currentWinterGramSettings.suppressesStoryViews {
+            let proceed: () -> Void = {
+                StoryContainerScreen.openPeerStoriesContinue(context: context, peerId: peerId, focusOnId: focusOnId, isHidden: isHidden, initialOrder: initialOrder, singlePeer: singlePeer, parentController: parentController, transitionIn: transitionIn, transitionOut: transitionOut, setFocusedItem: setFocusedItem, setProgress: setProgress, completion: completion)
+            }
+            let alert = textAlertController(context: context, title: "WinterGram", text: "View stories without marking them as seen?", actions: [
+                TextAlertAction(type: .genericAction, title: "View Normally", action: {
+                    proceed()
+                }),
+                TextAlertAction(type: .defaultAction, title: "Ghost View", action: {
+                    let _ = updateWinterGramSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
+                        var current = current
+                        current.ghostModeEnabled = true
+                        current.sendReadStories = false
+                        return current
+                    }).start()
+                    proceed()
+                })
+            ])
+            parentController.present(alert, in: .window(.root))
+            return
+        }
+        StoryContainerScreen.openPeerStoriesContinue(context: context, peerId: peerId, focusOnId: focusOnId, isHidden: isHidden, initialOrder: initialOrder, singlePeer: singlePeer, parentController: parentController, transitionIn: transitionIn, transitionOut: transitionOut, setFocusedItem: setFocusedItem, setProgress: setProgress, completion: completion)
+    }
+
+    private static func openPeerStoriesContinue(
+        context: AccountContext,
+        peerId: EnginePeer.Id,
+        focusOnId: Int32?,
+        isHidden: Bool,
+        initialOrder: [EnginePeer.Id],
+        singlePeer: Bool,
+        parentController: ViewController,
+        transitionIn: @escaping () -> StoryContainerScreen.TransitionIn?,
+        transitionOut: @escaping (EnginePeer.Id) -> StoryContainerScreen.TransitionOut?,
+        setFocusedItem: @escaping (Signal<EngineStoryId?, NoError>) -> Void,
+        setProgress: @escaping (Signal<Never, NoError>) -> Void,
+        completion: @escaping (StoryContainerScreen) -> Void
+    ) {
         let storyContent = StoryContentContextImpl(context: context, isHidden: isHidden, focusedPeerId: peerId, focusedStoryId: focusOnId, singlePeer: singlePeer, fixedOrder: initialOrder)
         let signal = storyContent.state
         |> take(1)
@@ -184,7 +227,7 @@ public extension StoryContainerScreen {
                     |> delay(4.0, queue: .mainQueue())
                 }
                 #endif
-                
+
                 return waitUntilStoryMediaPreloaded(context: context, peerId: slice.effectivePeer.id, storyItem: slice.item.storyItem)
                 |> timeout(4.0, queue: .mainQueue(), alternate: .complete())
                 |> map { _ -> StoryContentContextState in
@@ -199,9 +242,9 @@ public extension StoryContainerScreen {
             if state.slice == nil {
                 return
             }
-            
+
             let transitionIn: StoryContainerScreen.TransitionIn? = transitionIn()
-            
+
             let storyContainerScreen = StoryContainerScreen(
                 context: context,
                 content: storyContent,
@@ -215,7 +258,7 @@ public extension StoryContainerScreen {
             completion(storyContainerScreen)
         }
         |> ignoreValues
-        
+
         setProgress(signal)
     }
 }

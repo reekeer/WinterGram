@@ -10,6 +10,7 @@ import TextFormat
 import UndoUI
 import ChatInterfaceState
 import PremiumUI
+import TelegramUIPreferences
 import ReactionSelectionNode
 import TopMessageReactions
 import ChatMessagePaymentAlertController
@@ -80,13 +81,13 @@ extension ChatControllerImpl {
                         }
                         return true
                     }
-                    
+
                     var hasAction = false
                     let premiumConfiguration = PremiumConfiguration.with(appConfiguration: strongSelf.context.currentAppConfiguration.with { $0 })
                     if !premiumConfiguration.isPremiumDisabled {
                         hasAction = true
                     }
-                    
+
                     controller.present(UndoOverlayController(presentationData: presentationData, content: .premiumPaywall(title: nil, text: presentationData.strings.Chat_ToastMessagingRestrictedToPremium_Text(peer.compactDisplayTitle).string, customUndoText: hasAction ? presentationData.strings.Chat_ToastMessagingRestrictedToPremium_Action : nil, timeout: nil, linkAction: { _ in
                     }), elevatedLayout: false, animateInAsReplacement: true, action: { [weak controller] action in
                         guard let self, let controller else {
@@ -102,7 +103,7 @@ extension ChatControllerImpl {
             }
             controller.multiplePeersSelected = { [weak self, weak controller] peers, peerMap, messageText, mode, forwardOptions, _ in
                 let peerIds = peers.map { $0.id }
-                
+
                 let _ = (context.engine.data.get(
                     EngineDataMap(
                         peerIds.map(TelegramEngine.EngineData.Item.Peer.SendPaidMessageStars.init(id:))
@@ -116,7 +117,7 @@ extension ChatControllerImpl {
                         return
                     }
                     let renderedPeers = renderedPeers.compactMap({ $0 })
-                    
+
                     var count: Int32 = Int32(messages.count)
                     if messageText.string.count > 0 {
                         count += 1
@@ -129,14 +130,14 @@ extension ChatControllerImpl {
                             chargingPeers.append(peer)
                         }
                     }
-                                        
+
                     let proceed = { [weak self, weak controller] in
                         guard let strongSelf = self, let strongController = controller else {
                             return
                         }
-                        
+
                         strongController.dismiss()
-                        
+
                         var result: [EnqueueMessage] = []
                         if messageText.string.count > 0 {
                             let inputText = convertMarkdownToAttributes(messageText)
@@ -151,29 +152,29 @@ extension ChatControllerImpl {
                                 }
                             }
                         }
-                        
+
                         var attributes: [EngineMessage.Attribute] = []
-                        attributes.append(ForwardOptionsMessageAttribute(hideNames: forwardOptions?.hideNames == true, hideCaptions: forwardOptions?.hideCaptions == true))
-                        
+                        attributes.append(ForwardOptionsMessageAttribute(hideNames: forwardOptions?.hideNames == true || currentWinterGramSettings.forwardWithoutAuthor, hideCaptions: forwardOptions?.hideCaptions == true))
+
                         result.append(contentsOf: messages.map { message -> EnqueueMessage in
                             return .forward(source: message.id, threadId: nil, grouping: .auto, attributes: attributes, correlationId: nil)
                         })
-                        
+
                         let commit: ([EnqueueMessage]) -> Void = { result in
                             guard let strongSelf = self else {
                                 return
                             }
                             var result = result
-                            
+
                             strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withoutSelectionState() }).updatedSearch(nil) })
-                            
+
                             var correlationIds: [Int64] = []
                             for i in 0 ..< result.count {
                                 let correlationId = Int64.random(in: Int64.min ... Int64.max)
                                 correlationIds.append(correlationId)
                                 result[i] = result[i].withUpdatedCorrelationId(correlationId)
                             }
-                            
+
                             let targetPeersShouldDivertSignals: [Signal<(EnginePeer, Bool), NoError>] = peers.map { peer -> Signal<(EnginePeer, Bool), NoError> in
                                 return strongSelf.shouldDivertMessagesToScheduled(targetPeer: peer, messages: result)
                                 |> map { shouldDivert -> (EnginePeer, Bool) in
@@ -186,9 +187,9 @@ extension ChatControllerImpl {
                                 guard let strongSelf = self else {
                                     return
                                 }
-                                
+
                                 var displayConvertingTooltip = false
-                                
+
                                 var displayPeers: [EnginePeer] = []
                                 for (peer, shouldDivert) in targetPeersShouldDivert {
                                     var peerMessages = result
@@ -203,7 +204,7 @@ extension ChatControllerImpl {
                                             }
                                         }
                                     }
-                                    
+
                                     if let maybeAmount = sendPaidMessageStars[peer.id], let amount = maybeAmount {
                                         peerMessages = peerMessages.map { message -> EnqueueMessage in
                                             return message.withUpdatedAttributes { attributes in
@@ -213,7 +214,7 @@ extension ChatControllerImpl {
                                             }
                                         }
                                     }
-                                    
+
                                     let _ = (enqueueMessages(account: strongSelf.context.account, peerId: peer.id, messages: peerMessages)
                                     |> deliverOnMainQueue).startStandalone(next: { messageIds in
                                         if let strongSelf = self {
@@ -238,7 +239,7 @@ extension ChatControllerImpl {
                                             |> deliverOnMainQueue).startStrict())
                                         }
                                     })
-                                    
+
                                     if case let .secretChat(secretPeer) = peer {
                                         if let peer = peerMap[secretPeer.regularPeerId] {
                                             displayPeers.append(peer)
@@ -247,7 +248,7 @@ extension ChatControllerImpl {
                                         displayPeers.append(peer)
                                     }
                                 }
-                                
+
                                 let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
                                 let text: String
                                 var savedMessages = false
@@ -273,20 +274,20 @@ extension ChatControllerImpl {
                                         text = ""
                                     }
                                 }
-                                
+
                                 let reactionItems: Signal<[ReactionItem], NoError>
                                 if savedMessages && messages.count > 0 {
                                     reactionItems = tagMessageReactions(context: strongSelf.context, subPeerId: nil)
                                 } else {
                                     reactionItems = .single([])
                                 }
-                                
+
                                 let _ = (reactionItems
                                 |> deliverOnMainQueue).startStandalone(next: { [weak strongSelf] reactionItems in
                                     guard let strongSelf else {
                                         return
                                     }
-                                    
+
                                     strongSelf.present(UndoOverlayController(presentationData: presentationData, content: .forward(savedMessages: savedMessages, text: text), elevatedLayout: false, position: savedMessages && messages.count > 0 ? .top : .bottom, animateInAsReplacement: true, action: { action in
                                         if savedMessages, let self, action == .info {
                                             let _ = (self.context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: self.context.account.peerId))
@@ -303,12 +304,12 @@ extension ChatControllerImpl {
                                         return false
                                     }, additionalView: (savedMessages && messages.count > 0) ? chatShareToSavedMessagesAdditionalView(strongSelf, reactionItems: reactionItems, correlationIds: correlationIds) : nil), in: .current)
                                 })
-                                
+
                                 if displayConvertingTooltip {
                                 }
                             })
                         }
-                        
+
                         switch mode {
                         case .generic:
                             commit(result)
@@ -327,7 +328,7 @@ extension ChatControllerImpl {
                             commit(transformedMessages)
                         }
                     }
-                    
+
                     if totalAmount.value > 0 {
                         let controller = chatMessagePaymentAlertController(
                             context: nil,
@@ -355,16 +356,16 @@ extension ChatControllerImpl {
                 }
                 let peerId = peer.id
                 let accountPeerId = strongSelf.context.account.peerId
-                
+
                 if resetCurrent {
                     strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withUpdatedForwardMessageIds(nil).withUpdatedForwardOptionsState(nil) }) })
                 }
-                
+
                 var isPinnedMessages = false
                 if case .pinnedMessages = strongSelf.presentationInterfaceState.subject {
                     isPinnedMessages = true
                 }
-                
+
                 var hasNotOwnMessages = false
                 for message in messages {
                     if message.id.peerId == accountPeerId && message.forwardInfo == nil {
@@ -372,7 +373,7 @@ extension ChatControllerImpl {
                         hasNotOwnMessages = true
                     }
                 }
-                
+
                 if case .peer(peerId) = strongSelf.chatLocation, strongSelf.parentController == nil, !isPinnedMessages {
                     strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withUpdatedForwardMessageIds(messages.map { $0.id }).withUpdatedForwardOptionsState(ChatInterfaceForwardOptionsState(hideNames: !hasNotOwnMessages, hideCaptions: false, unhideNamesOnCaptionChange: false)).withoutSelectionState() }).updatedSearch(nil) })
                     strongSelf.updateItemNodesSearchTextHighlightStates()
@@ -382,27 +383,27 @@ extension ChatControllerImpl {
                     Queue.mainQueue().after(0.88) {
                         strongSelf.chatDisplayNode.hapticFeedback.success()
                     }
-                    
+
                     let reactionItems: Signal<[ReactionItem], NoError>
                     if messages.count > 0 {
                         reactionItems = tagMessageReactions(context: strongSelf.context, subPeerId: nil)
                     } else {
                         reactionItems = .single([])
                     }
-                    
+
                     var correlationIds: [Int64] = []
                     let mappedMessages = messages.map { message -> EnqueueMessage in
                         let correlationId = Int64.random(in: Int64.min ... Int64.max)
                         correlationIds.append(correlationId)
                         return .forward(source: message.id, threadId: nil, grouping: .auto, attributes: [], correlationId: correlationId)
                     }
-                    
+
                     let _ = (reactionItems
                     |> deliverOnMainQueue).startStandalone(next: { [weak strongSelf] reactionItems in
                         guard let strongSelf else {
                             return
                         }
-                        
+
                         let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
                         strongSelf.present(UndoOverlayController(presentationData: presentationData, content: .forward(savedMessages: true, text: messages.count == 1 ? presentationData.strings.Conversation_ForwardTooltip_SavedMessages_One : presentationData.strings.Conversation_ForwardTooltip_SavedMessages_Many), elevatedLayout: false, position: .top, animateInAsReplacement: true, action: { [weak self] value in
                             if case .info = value, let strongSelf = self {
@@ -411,7 +412,7 @@ extension ChatControllerImpl {
                                     guard let strongSelf = self, let peer = peer, let navigationController = strongSelf.effectiveNavigationController else {
                                         return
                                     }
-                                    
+
                                     strongSelf.context.sharedContext.navigateToChatController(NavigateToChatControllerParams(navigationController: navigationController, context: strongSelf.context, chatLocation: .peer(peer), keepStack: .always, purposefulAction: {}, peekData: nil, forceOpenChat: true))
                                 })
                                 return true
@@ -419,7 +420,7 @@ extension ChatControllerImpl {
                             return false
                         }, additionalView: messages.count > 0 ? chatShareToSavedMessagesAdditionalView(strongSelf, reactionItems: reactionItems, correlationIds: correlationIds) : nil), in: .current)
                     })
-                    
+
                     let _ = (enqueueMessages(account: strongSelf.context.account, peerId: peerId, messages: mappedMessages)
                     |> deliverOnMainQueue).startStandalone(next: { messageIds in
                         if let strongSelf = self {
@@ -473,14 +474,14 @@ extension ChatControllerImpl {
                         if let strongSelf = self {
                             let proceed: (ChatController) -> Void = { chatController in
                                 strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withoutSelectionState() }) })
-                                
+
                                 let navigationController: NavigationController?
                                 if let parentController = strongSelf.parentController {
                                     navigationController = (parentController.navigationController as? NavigationController)
                                 } else {
                                     navigationController = strongSelf.effectiveNavigationController
                                 }
-                                
+
                                 if let navigationController = navigationController {
                                     var viewControllers = navigationController.viewControllers
                                     if threadId != nil {
@@ -489,7 +490,7 @@ extension ChatControllerImpl {
                                         viewControllers.insert(chatController, at: viewControllers.count - 1)
                                     }
                                     navigationController.setViewControllers(viewControllers, animated: false)
-                                    
+
                                     strongSelf.controllerNavigationDisposable.set((chatController.ready.get()
                                     |> SwiftSignalKit.filter { $0 }
                                     |> take(1)

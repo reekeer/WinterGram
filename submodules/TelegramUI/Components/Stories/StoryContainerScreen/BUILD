@@ -58,6 +58,7 @@ swift_library(
         "//submodules/TelegramUI/Components/TextNodeWithEntities",
         "//submodules/InvisibleInkDustNode",
         "//submodules/PresentationDataUtils",
+        "//submodules/AlertUI",
         "//submodules/UrlEscaping",
         "//submodules/OverlayStatusController",
         "//submodules/Utils/VolumeButtons",

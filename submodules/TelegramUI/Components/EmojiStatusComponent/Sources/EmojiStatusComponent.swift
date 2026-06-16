@@ -16,13 +16,38 @@ import GZip
 import HierarchyTrackingLayer
 import TelegramUIPreferences
 
+// WinterGram: bakes a white-on-transparent shape asset, tinted to `color`, into a CGImage usable as
+// layer contents. Drawing into a renderer context is required because `UIImage.withTintColor(...).cgImage`
+// returns the original (untinted) pixels. Cached per (shape, colour).
+private var winterGramTintedShapeCache: [String: CGImage] = [:]
+func winterGramBakeTintedShape(_ name: String, color: UIColor) -> CGImage? {
+    var r: CGFloat = 0.0, g: CGFloat = 0.0, b: CGFloat = 0.0, a: CGFloat = 0.0
+    color.getRed(&r, green: &g, blue: &b, alpha: &a)
+    let key = "\(name)|\(Int(r * 255.0))|\(Int(g * 255.0))|\(Int(b * 255.0))"
+    if let cached = winterGramTintedShapeCache[key] {
+        return cached
+    }
+    guard let shape = UIImage(bundleImageName: name) else {
+        return nil
+    }
+    let renderer = UIGraphicsImageRenderer(size: shape.size)
+    let baked = renderer.image { _ in
+        shape.withTintColor(color, renderingMode: .alwaysOriginal).draw(in: CGRect(origin: .zero, size: shape.size))
+    }
+    if let cgImage = baked.cgImage {
+        winterGramTintedShapeCache[key] = cgImage
+        return cgImage
+    }
+    return nil
+}
+
 public final class EmojiStatusComponent: Component {
     public typealias EnvironmentType = Empty
-    
+
     public enum AnimationContent: Equatable {
         case file(file: TelegramMediaFile)
         case customEmoji(fileId: Int64)
-        
+
         public var fileId: MediaId {
             switch self {
             case let .file(file):
@@ -32,18 +57,18 @@ public final class EmojiStatusComponent: Component {
             }
         }
     }
-    
+
     public enum LoopMode: Equatable {
         case forever
         case count(Int)
     }
-    
+
     public enum SizeType {
         case compact
         case large
         case smaller
     }
-    
+
     public enum Content: Equatable {
         case none
         case premium(color: UIColor)
@@ -52,8 +77,9 @@ public final class EmojiStatusComponent: Component {
         case animation(content: AnimationContent, size: CGSize, placeholderColor: UIColor, themeColor: UIColor?, loopMode: LoopMode)
         case topic(title: String, color: Int32, size: CGSize)
         case image(image: UIImage?, tintColor: UIColor?)
+        case winterGramBadge(backplateColor: UIColor)
     }
-    
+
     public let postbox: Postbox
     public let energyUsageSettings: EnergyUsageSettings
     public let resolveInlineStickers: ([Int64]) -> Signal<[Int64: TelegramMediaFile], NoError>
@@ -68,7 +94,7 @@ public final class EmojiStatusComponent: Component {
     public let action: (() -> Void)?
     public let emojiFileUpdated: ((TelegramMediaFile?) -> Void)?
     public let tag: AnyObject?
-    
+
     public convenience init(
         context: AccountContext,
         animationCache: AnimationCache,
@@ -102,7 +128,7 @@ public final class EmojiStatusComponent: Component {
             tag: tag
         )
     }
-    
+
     public init(
         postbox: Postbox,
         energyUsageSettings: EnergyUsageSettings,
@@ -134,7 +160,7 @@ public final class EmojiStatusComponent: Component {
         self.emojiFileUpdated = emojiFileUpdated
         self.tag = tag
     }
-    
+
     public func withVisibleForAnimations(_ isVisibleForAnimations: Bool) -> EmojiStatusComponent {
         return EmojiStatusComponent(
             postbox: self.postbox,
@@ -153,7 +179,7 @@ public final class EmojiStatusComponent: Component {
             tag: self.tag
         )
     }
-    
+
     public static func ==(lhs: EmojiStatusComponent, rhs: EmojiStatusComponent) -> Bool {
         if lhs.postbox !== rhs.postbox {
             return false
@@ -201,16 +227,16 @@ public final class EmojiStatusComponent: Component {
             }
             return false
         }
-        
+
         private final class AnimationFileProperties {
             let path: String
             let coloredComposition: Animation?
-            
+
             init(path: String, coloredComposition: Animation?) {
                 self.path = path
                 self.coloredComposition = coloredComposition
             }
-            
+
             static func load(from path: String) -> AnimationFileProperties {
                 guard let size = fileSize(path), size < 1024 * 1024 else {
                     return AnimationFileProperties(path: path, coloredComposition: nil)
@@ -221,41 +247,48 @@ public final class EmojiStatusComponent: Component {
                 guard let unzippedData = TGGUnzipData(data, 1024 * 1024) else {
                     return AnimationFileProperties(path: path, coloredComposition: nil)
                 }
-                
+
                 var coloredComposition: Animation?
                 if let composition = try? Animation.from(data: unzippedData) {
                     coloredComposition = composition
                 }
-                
+
                 return AnimationFileProperties(path: path, coloredComposition: coloredComposition)
             }
         }
-        
+
         private weak var state: EmptyComponentState?
         private var component: EmojiStatusComponent?
         private var starsLayer: StarsEffectLayer?
-        
+
         private var iconLayer: SimpleLayer?
         private var iconLayerImage: UIImage?
-        
+
+        private var winterGramBackplateLayer: SimpleLayer?
+        private var winterGramSnowflakeLayer: SimpleLayer?
+        // Whether the badge backplate should be spinning. Tracked separately so the rotation can be
+        // re-applied when the layer re-enters the hierarchy (Core Animation drops detached animations
+        // when a layer leaves the window — e.g. cell reuse / scrolling / backgrounding).
+        private var winterGramBadgeAnimating: Bool = false
+
         private var animationLayer: InlineStickerItemLayer?
         private var lottieAnimationView: AnimationView?
         private let hierarchyTrackingLayer: HierarchyTrackingLayer
-        
+
         private var emojiFile: TelegramMediaFile?
         private var emojiFileDataProperties: AnimationFileProperties?
         private var emojiFileDisposable: Disposable?
         private var emojiFileDataPathDisposable: Disposable?
-        
+
         override init(frame: CGRect) {
             self.hierarchyTrackingLayer = HierarchyTrackingLayer()
-            
+
             super.init(frame: frame)
-            
+
             self.layer.addSublayer(self.hierarchyTrackingLayer)
-            
+
             self.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(self.tapGesture(_:))))
-            
+
             self.hierarchyTrackingLayer.didEnterHierarchy = { [weak self] in
                 guard let strongSelf = self else {
                     return
@@ -263,44 +296,66 @@ public final class EmojiStatusComponent: Component {
                 if let lottieAnimationView = strongSelf.lottieAnimationView {
                     lottieAnimationView.play()
                 }
+                strongSelf.applyWinterGramBadgeRotation()
             }
         }
-        
+
+        // (Re)applies the infinite backplate-rotation animation for the WinterGram badge. Safe to call
+        // repeatedly: it removes any existing animation first and only re-adds it when animation is
+        // enabled, so re-entering the hierarchy resumes the spin instead of leaving it frozen.
+        private func applyWinterGramBadgeRotation() {
+            guard let backplateLayer = self.winterGramBackplateLayer else {
+                return
+            }
+            backplateLayer.removeAnimation(forKey: "winterGramBackplateRotation")
+            guard self.winterGramBadgeAnimating else {
+                return
+            }
+            let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+            animation.fromValue = 0.0
+            animation.toValue = Double.pi * 2.0
+            animation.duration = 8.0
+            animation.repeatCount = .infinity
+            animation.timingFunction = CAMediaTimingFunction(name: .linear)
+            animation.isRemovedOnCompletion = false
+            backplateLayer.add(animation, forKey: "winterGramBackplateRotation")
+        }
+
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
-        
+
         deinit {
             self.emojiFileDisposable?.dispose()
             self.emojiFileDataPathDisposable?.dispose()
         }
-        
+
         @objc private func tapGesture(_ recognizer: UITapGestureRecognizer) {
             if case .ended = recognizer.state {
                 self.component?.action?()
             }
         }
-        
+
         public func playOnce() {
             self.animationLayer?.playOnce()
         }
-        
+
         func update(component: EmojiStatusComponent, availableSize: CGSize, state: EmptyComponentState, environment: Environment<EnvironmentType>, transition: ComponentTransition) -> CGSize {
             let availableSize = component.size ?? availableSize
-            
+
             self.state = state
-            
+
             var iconImage: UIImage?
             var emojiFileId: Int64?
             var emojiPlaceholderColor: UIColor?
             var emojiThemeColor: UIColor?
             var emojiLoopMode: LoopMode?
             var emojiSize = CGSize()
-            
+
             var iconTintColor: UIColor?
-            
+
             self.isUserInteractionEnabled = component.action != nil
-            
+
             if let particleColor = component.particleColor {
                 let starsLayer: StarsEffectLayer
                 if let current = self.starsLayer {
@@ -318,7 +373,7 @@ public final class EmojiStatusComponent: Component {
                 self.starsLayer = nil
                 starsLayer.removeFromSuperlayer()
             }
-            
+
             //let previousContent = self.component?.content
             if self.component?.content != component.content {
                 switch component.content {
@@ -326,7 +381,7 @@ public final class EmojiStatusComponent: Component {
                     iconImage = nil
                 case let .premium(color):
                     iconTintColor = color
-                    
+
                     if case .premium = self.component?.content, let image = self.iconLayerImage {
                         iconImage = image
                     } else {
@@ -336,7 +391,7 @@ public final class EmojiStatusComponent: Component {
                                     context.clear(CGRect(origin: CGPoint(), size: size))
                                     let imageSize = CGSize(width: sourceImage.size.width - 8.0, height: sourceImage.size.height - 8.0)
                                     context.clip(to: CGRect(origin: CGPoint(x: floor((size.width - imageSize.width) / 2.0), y: floor((size.height - imageSize.height) / 2.0)), size: imageSize), mask: cgImage)
-                                    
+
                                     context.setFillColor(UIColor.white.cgColor)
                                     context.fill(CGRect(origin: CGPoint(), size: size))
                                 }
@@ -363,7 +418,7 @@ public final class EmojiStatusComponent: Component {
                     case .large:
                         imageNamePrefix = "Peer Info/VerifiedIcon"
                     }
-                    
+
                     if let backgroundImage = UIImage(bundleImageName: "\(imageNamePrefix)Background"), let foregroundImage = UIImage(bundleImageName: "\(imageNamePrefix)Foreground") {
                         iconImage = generateImage(backgroundImage.size, contextGenerator: { size, context in
                             if let backgroundCgImage = backgroundImage.cgImage, let foregroundCgImage = foregroundImage.cgImage {
@@ -374,7 +429,7 @@ public final class EmojiStatusComponent: Component {
                                 context.setFillColor(fillColor.cgColor)
                                 context.fill(CGRect(origin: CGPoint(), size: size))
                                 context.restoreGState()
-                                
+
                                 context.setBlendMode(.copy)
                                 context.clip(to: CGRect(origin: .zero, size: size), mask: foregroundCgImage)
                                 context.setFillColor(foregroundColor.cgColor)
@@ -387,18 +442,18 @@ public final class EmojiStatusComponent: Component {
                 case let .text(color, string):
                     let titleString = NSAttributedString(string: string, font: Font.bold(10.0), textColor: color, paragraphAlignment: .center)
                     let stringRect = titleString.boundingRect(with: CGSize(width: 100.0, height: 16.0), options: .usesLineFragmentOrigin, context: nil)
-                    
+
                     iconImage = generateImage(CGSize(width: floor(stringRect.width) + 11.0, height: 16.0), contextGenerator: { size, context in
                         let bounds = CGRect(origin: CGPoint(), size: size)
                         context.clear(bounds)
-                        
+
                         context.setFillColor(color.cgColor)
                         context.setStrokeColor(color.cgColor)
                         context.setLineWidth(1.0)
-                        
+
                         context.addPath(UIBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 2.0).cgPath)
                         context.strokePath()
-                        
+
                         let titlePath = CGMutablePath()
                         titlePath.addRect(bounds.offsetBy(dx: 0.0, dy: -2.0 + UIScreenPixel))
                         let titleFramesetter = CTFramesetterCreateWithAttributedString(titleString as CFAttributedString)
@@ -412,20 +467,20 @@ public final class EmojiStatusComponent: Component {
                     emojiThemeColor = themeColor
                     emojiSize = size
                     emojiLoopMode = loopMode
-                    
+
                     if case let .animation(previousAnimationContent, _, _, _, _) = self.component?.content {
                         if previousAnimationContent.fileId != animationContent.fileId {
                             self.emojiFileDisposable?.dispose()
                             self.emojiFileDisposable = nil
                             self.emojiFileDataPathDisposable?.dispose()
                             self.emojiFileDataPathDisposable = nil
-                            
+
                             self.emojiFile = nil
                             self.emojiFileDataProperties = nil
-                            
+
                             if let animationLayer = self.animationLayer {
                                 self.animationLayer = nil
-                                
+
                                 if !transition.animation.isImmediate {
                                     animationLayer.animateAlpha(from: 1.0, to: 0.0, duration: 0.2, removeOnCompletion: false, completion: { [weak animationLayer] _ in
                                         animationLayer?.removeFromSuperlayer()
@@ -437,7 +492,7 @@ public final class EmojiStatusComponent: Component {
                             }
                             if let lottieAnimationView = self.lottieAnimationView {
                                 self.lottieAnimationView = nil
-                                
+
                                 if !transition.animation.isImmediate {
                                     lottieAnimationView.layer.animateAlpha(from: 1.0, to: 0.0, duration: 0.2, removeOnCompletion: false, completion: { [weak lottieAnimationView] _ in
                                         lottieAnimationView?.removeFromSuperview()
@@ -449,13 +504,30 @@ public final class EmojiStatusComponent: Component {
                             }
                         }
                     }
-                    
+
                     switch animationContent {
                     case let .file(file):
                         self.emojiFile = file
                     case .customEmoji:
                         break
                     }
+                case .winterGramBadge(_):
+                    iconImage = nil
+
+                    if let animationLayer = self.animationLayer {
+                        self.animationLayer = nil
+                        animationLayer.removeFromSuperlayer()
+                    }
+                    if let lottieAnimationView = self.lottieAnimationView {
+                        self.lottieAnimationView = nil
+                        lottieAnimationView.removeFromSuperview()
+                    }
+                    self.emojiFile = nil
+                    self.emojiFileDataProperties = nil
+                    self.emojiFileDisposable?.dispose()
+                    self.emojiFileDisposable = nil
+                    self.emojiFileDataPathDisposable?.dispose()
+                    self.emojiFileDataPathDisposable = nil
                 }
             } else {
                 iconImage = self.iconLayerImage
@@ -469,11 +541,11 @@ public final class EmojiStatusComponent: Component {
                     iconTintColor = color
                 }
             }
-            
+
             self.component = component
-            
+
             var size = CGSize()
-            
+
             if let iconImage = iconImage {
                 let iconLayer: SimpleLayer
                 if let current = self.iconLayer {
@@ -482,7 +554,7 @@ public final class EmojiStatusComponent: Component {
                     iconLayer = SimpleLayer()
                     self.iconLayer = iconLayer
                     self.layer.addSublayer(iconLayer)
-                    
+
                     if !transition.animation.isImmediate {
                         iconLayer.animateAlpha(from: 0.0, to: 1.0, duration: 0.2)
                         iconLayer.animateSpring(from: 0.1 as NSNumber, to: 1.0 as NSNumber, keyPath: "transform.scale", duration: 0.5)
@@ -492,13 +564,13 @@ public final class EmojiStatusComponent: Component {
                     self.iconLayerImage = iconImage
                     iconLayer.contents = iconImage.cgImage
                 }
-                
+
                 if let iconTintColor {
                     transition.setTintColor(layer: iconLayer, color: iconTintColor)
                 } else {
                     iconLayer.layerTintColor = nil
                 }
-                
+
                 var useFit = false
                 switch component.content {
                 case .text:
@@ -518,7 +590,7 @@ public final class EmojiStatusComponent: Component {
             } else {
                 if let iconLayer = self.iconLayer {
                     self.iconLayer = nil
-                    
+
                     if !transition.animation.isImmediate {
                         iconLayer.animateAlpha(from: 1.0, to: 0.0, duration: 0.2, removeOnCompletion: false, completion: { [weak iconLayer] _ in
                             iconLayer?.removeFromSuperlayer()
@@ -530,17 +602,66 @@ public final class EmojiStatusComponent: Component {
                 }
                 self.iconLayerImage = nil
             }
-            
+
+            if case let .winterGramBadge(backplateColor) = component.content {
+                size = availableSize
+                // The tint must be BAKED into the bitmap: `UIImage.withTintColor(...).cgImage` returns the
+                // original (white) pixels, which would render the backplate white instead of the theme colour.
+                let backplateImage = winterGramBakeTintedShape("WntGramBackplateShape", color: backplateColor)
+                let snowflakeImage = winterGramBakeTintedShape("WntGramSnowflakeShape", color: .white)
+
+                let backplateLayer: SimpleLayer
+                if let current = self.winterGramBackplateLayer {
+                    backplateLayer = current
+                } else {
+                    backplateLayer = SimpleLayer()
+                    self.winterGramBackplateLayer = backplateLayer
+                    self.layer.addSublayer(backplateLayer)
+                }
+                let snowflakeLayer: SimpleLayer
+                if let current = self.winterGramSnowflakeLayer {
+                    snowflakeLayer = current
+                } else {
+                    snowflakeLayer = SimpleLayer()
+                    self.winterGramSnowflakeLayer = snowflakeLayer
+                    self.layer.addSublayer(snowflakeLayer)
+                }
+
+                backplateLayer.contents = backplateImage
+                snowflakeLayer.contents = snowflakeImage
+
+                backplateLayer.frame = CGRect(origin: .zero, size: availableSize)
+                // Snowflake: 756/1024 of the canvas, centred at the 134/1024 inset (per the badge spec),
+                // so the rotating backplate spins around the static, centred snowflake.
+                let snowflakeInset = availableSize.width * 134.0 / 1024.0
+                let snowflakeSide = availableSize.width * 756.0 / 1024.0
+                snowflakeLayer.frame = CGRect(x: snowflakeInset, y: snowflakeInset, width: snowflakeSide, height: snowflakeSide)
+
+                // WinterGram badge always spins (independent of the GIF/energy autoplay setting).
+                self.winterGramBadgeAnimating = true
+                self.applyWinterGramBadgeRotation()
+            } else {
+                self.winterGramBadgeAnimating = false
+                if let backplateLayer = self.winterGramBackplateLayer {
+                    self.winterGramBackplateLayer = nil
+                    backplateLayer.removeFromSuperlayer()
+                }
+                if let snowflakeLayer = self.winterGramSnowflakeLayer {
+                    self.winterGramSnowflakeLayer = nil
+                    snowflakeLayer.removeFromSuperlayer()
+                }
+            }
+
             let emojiFileUpdated = component.emojiFileUpdated
             if let emojiFileId = emojiFileId, let emojiPlaceholderColor = emojiPlaceholderColor, let emojiLoopMode = emojiLoopMode {
                 size = availableSize
-                
+
                 if let emojiFile = self.emojiFile {
                     self.emojiFileDisposable?.dispose()
                     self.emojiFileDisposable = nil
                     self.emojiFileDataPathDisposable?.dispose()
                     self.emojiFileDataPathDisposable = nil
-                    
+
                     let animationLayer: InlineStickerItemLayer
                     if let current = self.animationLayer {
                         animationLayer = current
@@ -575,13 +696,13 @@ public final class EmojiStatusComponent: Component {
                         )
                         self.animationLayer = animationLayer
                         self.layer.addSublayer(animationLayer)
-                        
+
                         if !transition.animation.isImmediate {
                             animationLayer.animateAlpha(from: 0.0, to: 1.0, duration: 0.2)
                             animationLayer.animateSpring(from: 0.1 as NSNumber, to: 1.0 as NSNumber, keyPath: "transform.scale", duration: 0.5)
                         }
                     }
-                    
+
                     var accentTint = false
                     if let _ = emojiThemeColor {
                         if emojiFile.isCustomTemplateEmoji {
@@ -600,13 +721,13 @@ public final class EmojiStatusComponent: Component {
                             }
                         }
                     }
-                    
+
                     if accentTint {
                         animationLayer.updateTintColor(contentTintColor: emojiThemeColor, dynamicColor: emojiThemeColor, transition: transition)
                     } else {
                         animationLayer.updateTintColor(contentTintColor: nil, dynamicColor: nil, transition: transition)
                     }
-                    
+
                     animationLayer.frame = CGRect(origin: CGPoint(), size: size)
                     animationLayer.isVisibleForAnimations = component.isVisibleForAnimations
                 } else {
@@ -619,7 +740,7 @@ public final class EmojiStatusComponent: Component {
                             strongSelf.emojiFile = result[emojiFileId]
                             strongSelf.emojiFileDataProperties = nil
                             strongSelf.state?.updated(transition: transition)
-                            
+
                             emojiFileUpdated?(result[emojiFileId])
                         })
                     }
@@ -630,15 +751,15 @@ public final class EmojiStatusComponent: Component {
                     self.emojiFileDataProperties = nil
                     emojiFileUpdated?(nil)
                 }
-                
+
                 self.emojiFileDisposable?.dispose()
                 self.emojiFileDisposable = nil
                 self.emojiFileDataPathDisposable?.dispose()
                 self.emojiFileDataPathDisposable = nil
-                
+
                 if let animationLayer = self.animationLayer {
                     self.animationLayer = nil
-                    
+
                     if !transition.animation.isImmediate {
                         animationLayer.animateAlpha(from: 1.0, to: 0.0, duration: 0.2, removeOnCompletion: false, completion: { [weak animationLayer] _ in
                             animationLayer?.removeFromSuperlayer()
@@ -650,7 +771,7 @@ public final class EmojiStatusComponent: Component {
                 }
                 if let lottieAnimationView = self.lottieAnimationView {
                     self.lottieAnimationView = nil
-                    
+
                     if !transition.animation.isImmediate {
                         lottieAnimationView.layer.animateAlpha(from: 1.0, to: 0.0, duration: 0.2, removeOnCompletion: false, completion: { [weak lottieAnimationView] _ in
                             lottieAnimationView?.removeFromSuperview()
@@ -661,7 +782,7 @@ public final class EmojiStatusComponent: Component {
                     }
                 }
             }
-            
+
             return size
         }
     }
@@ -669,7 +790,7 @@ public final class EmojiStatusComponent: Component {
     public func makeView() -> View {
         return View(frame: CGRect())
     }
-    
+
     public func update(view: View, availableSize: CGSize, state: EmptyComponentState, environment: Environment<EnvironmentType>, transition: ComponentTransition) -> CGSize {
         return view.update(component: self, availableSize: availableSize, state: state, environment: environment, transition: transition)
     }
@@ -684,27 +805,27 @@ public func topicIconColors(for color: Int32) -> ([UInt32], [UInt32]) {
         0xFF93B2: ([0xFF93B2, 0xE23264], [0xFC447A, 0xC80C46]),
         0xFB6F5F: ([0xFB6F5F, 0xD72615], [0xDC1908, 0xB61506])
     ]
-    
+
     return topicColors[color] ?? ([0x6FB9F0, 0x0261E4], [0x026CB5, 0x064BB7])
 }
 
 public final class StarsEffectLayer: SimpleLayer {
     private let emitterLayer = CAEmitterLayer()
-    
+
     public override init() {
         super.init()
-        
+
         self.addSublayer(self.emitterLayer)
     }
-    
+
     override init(layer: Any) {
         super.init(layer: layer)
     }
-    
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     private func setup(color: UIColor, size: CGSize) {
         let emitter = CAEmitterCell()
         emitter.name = "emitter"
@@ -716,7 +837,7 @@ public final class StarsEffectLayer: SimpleLayer {
         emitter.scaleRange = 0.02
         emitter.alphaRange = 0.1
         emitter.emissionRange = .pi * 2.0
-        
+
         let staticColors: [Any] = [
             color.withAlphaComponent(0.0).cgColor,
             color.withAlphaComponent(0.58).cgColor,
@@ -728,7 +849,7 @@ public final class StarsEffectLayer: SimpleLayer {
         emitter.setValue([staticColorBehavior], forKey: "emitterBehaviors")
         self.emitterLayer.emitterCells = [emitter]
     }
-    
+
     public func update(color: UIColor, size: CGSize) {
         if self.emitterLayer.emitterCells == nil {
             self.setup(color: color, size: size)

@@ -9,39 +9,39 @@ public func renderSettingsIcon(name: String, scaleFactor: CGFloat = 1.0, backgro
     return generateImage(CGSize(width: 30.0, height: 30.0), contextGenerator: { size, context in
         let bounds = CGRect(origin: CGPoint(), size: size)
         context.clear(bounds)
-        
+
         if let backgroundColors {
             var locations: [CGFloat] = [0.0, 1.0]
             let colors: [CGColor] = backgroundColors.map(\.cgColor)
-            
+
             let colorSpace = CGColorSpaceCreateDeviceRGB()
             let gradient = CGGradient(colorsSpace: colorSpace, colors: colors as CFArray, locations: &locations)!
-            
+
             context.drawLinearGradient(gradient, start: CGPoint(x: size.width, y: size.height), end: CGPoint(x: 0.0, y: 0.0), options: CGGradientDrawingOptions())
-            
+
             if let gradientImage, let cgImage = gradientImage.cgImage {
                 context.setBlendMode(.plusLighter)
                 context.draw(cgImage, in: CGRect(origin: .zero, size: size))
             }
-            
+
             if let backdropImage, let cgImage = backdropImage.cgImage {
                 context.setBlendMode(.overlay)
                 context.draw(cgImage, in: CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: size))
             }
-                        
+
             context.setBlendMode(.normal)
-            
+
             if let image = UIImage(bundleImageName: name), let maskImage = image.cgImage {
                 let imageSize = CGSize(width: image.size.width * scaleFactor, height: image.size.height * scaleFactor)
                 let imageRect = CGRect(origin: CGPoint(x: (bounds.width - imageSize.width) * 0.5, y: (bounds.height - imageSize.height) * 0.5), size: imageSize)
-                
+
                 context.saveGState()
                 context.clip(to: imageRect, mask: maskImage)
                 context.setFillColor(UIColor.white.cgColor)
                 context.fill(imageRect)
                 context.restoreGState()
             }
-            
+
             let outerPath = UIBezierPath(rect: CGRect(origin: .zero, size: size))
             let innerPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8.0)
             outerPath.append(innerPath)
@@ -72,7 +72,7 @@ public func renderAttachAppIcon(iconImage: UIImage?) -> UIImage? {
     return generateImage(CGSize(width: 30.0, height: 30.0), contextGenerator: { size, context in
         let bounds = CGRect(origin: CGPoint(), size: size)
         context.clear(bounds)
-                
+
         if let iconImage, let cgImage = iconImage.cgImage {
             context.draw(cgImage, in: CGRect(origin: .zero, size: size))
         }
@@ -83,14 +83,14 @@ public func renderAttachAppIcon(iconImage: UIImage?) -> UIImage? {
             context.draw(cgImage, in: CGRect(origin: .zero, size: size))
             context.restoreGState()
         }
-        
+
         if let backdropImage, let cgImage = backdropImage.cgImage {
             context.saveGState()
             context.setBlendMode(.overlay)
             context.draw(cgImage, in: CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: size))
             context.restoreGState()
         }
-        
+
         let outerPath = UIBezierPath(rect: CGRect(origin: .zero, size: size))
         let innerPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8.0)
         outerPath.append(innerPath)
@@ -131,24 +131,24 @@ public struct PresentationResourcesSettings {
     public static let powerSaving = renderSettingsIcon(name: "Item List/Icons/PowerSaving", backgroundColors: [colorOrange])
     public static let business = renderSettingsIcon(name: "Item List/Icons/Business", backgroundColors: [UIColor(rgb: 0xA95CE3), UIColor(rgb: 0xF16B80)])
     public static let myProfile = renderSettingsIcon(name: "Item List/Icons/Profile", backgroundColors: [colorRed])
-    public static let winterGram = renderSettingsIcon(name: "Item List/Icons/WinterGram", backgroundColors: [colorLightBlue])
+    public static let winterGram = renderSettingsIcon(name: "WntGramSnowflakeShape", scaleFactor: 0.16, backgroundColors: [colorLightBlue])
 
     public static let birthday = renderSettingsIcon(name: "Item List/Icons/Cake", backgroundColors: [colorBlue])
     public static let aiTools = renderSettingsIcon(name: "Item List/Icons/AITools", backgroundColors: [colorPurple])
     public static let yourColor = renderSettingsIcon(name: "Item List/Icons/Brush", backgroundColors: [colorLightBlue])
-    
+
     public static let storageUsage = renderSettingsIcon(name: "Item List/Icons/Pie", backgroundColors: [colorOrange])
     public static let dataUsage = renderSettingsIcon(name: "Item List/Icons/Stats", backgroundColors: [colorPurple])
-    
+
     public static let cellular = renderSettingsIcon(name: "Item List/Icons/Cellular", backgroundColors: [colorGreen])
     public static let wifi = renderSettingsIcon(name: "Item List/Icons/Wifi", backgroundColors: [colorBlue])
-    
+
     public static let privateChats = renderSettingsIcon(name: "Item List/Icons/Member", backgroundColors: [colorBlue])
     public static let groups = renderSettingsIcon(name: "Item List/Icons/Group", backgroundColors: [colorGreen])
     public static let channels = renderSettingsIcon(name: "Item List/Icons/Channel", backgroundColors: [colorOrange])
     public static let stories = renderSettingsIcon(name: "Item List/Icons/Stories", backgroundColors: [colorViolet])
     public static let reactions = renderSettingsIcon(name: "Item List/Icons/Reactions", backgroundColors: [UIColor(rgb: 0xFF2D55)])
-    
+
     public static let photos = renderSettingsIcon(name: "Item List/Icons/Photo", backgroundColors: [colorOrange])
     public static let videos = renderSettingsIcon(name: "Item List/Icons/Video", backgroundColors: [colorRed])
     public static let files = renderSettingsIcon(name: "Item List/Icons/File", backgroundColors: [colorBlue])
@@ -163,7 +163,7 @@ public struct PresentationResourcesSettings {
     public static let clock = renderSettingsIcon(name: "Item List/Icons/Clock", backgroundColors: [colorPurple])
     public static let photosLightBlue = renderSettingsIcon(name: "Item List/Icons/Photo", backgroundColors: [colorLightBlue])
     public static let videosBlue = renderSettingsIcon(name: "Item List/Icons/Video", backgroundColors: [colorBlue])
-    
+
     public static let block = renderSettingsIcon(name: "Item List/Icons/Block", backgroundColors: [colorRed])
     public static let activeSessions = renderSettingsIcon(name: "Item List/Icons/Language", backgroundColors: [colorBlue])
     public static let faceId = renderSettingsIcon(name: "Item List/Icons/FaceId", backgroundColors: [colorGreen])
@@ -171,11 +171,11 @@ public struct PresentationResourcesSettings {
     public static let passkeys = renderSettingsIcon(name: "Item List/Icons/Key", backgroundColors: [colorViolet])
     public static let timer = renderSettingsIcon(name: "Item List/Icons/Timer", backgroundColors: [colorPurple])
     public static let email = renderSettingsIcon(name: "Item List/Icons/Email", backgroundColors: [colorViolet])
-        
+
     public static let premium = generateImage(CGSize(width: 30.0, height: 30.0), contextGenerator: { size, context in
         let bounds = CGRect(origin: CGPoint(), size: size)
         context.clear(bounds)
-                
+
         let colorsArray: [CGColor] = [
             UIColor(rgb: 0x6b93ff).cgColor,
             UIColor(rgb: 0x6b93ff).cgColor,
@@ -186,23 +186,23 @@ public struct PresentationResourcesSettings {
         var locations: [CGFloat] = [0.0, 0.15, 0.5, 0.85, 1.0]
         let gradient = CGGradient(colorsSpace: deviceColorSpace, colors: colorsArray as CFArray, locations: &locations)!
         context.drawLinearGradient(gradient, start: CGPoint(x: 0.0, y: 0.0), end: CGPoint(x: size.width, y: size.height), options: CGGradientDrawingOptions())
-        
+
         if let gradientImage, let cgImage = gradientImage.cgImage {
             context.setBlendMode(.plusLighter)
             context.draw(cgImage, in: CGRect(origin: .zero, size: size))
         }
-        
+
         if let backdropImage, let cgImage = backdropImage.cgImage {
             context.setBlendMode(.overlay)
             context.draw(cgImage, in: CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: size))
         }
-        
+
         context.setBlendMode(.normal)
-        
+
         if let image = generateTintedImage(image: UIImage(bundleImageName: "Item List/Icons/Premium"), color: UIColor(rgb: 0xffffff)), let cgImage = image.cgImage {
             context.draw(cgImage, in: CGRect(origin: CGPoint(x: floorToScreenPixels((bounds.width - image.size.width) / 2.0), y: floorToScreenPixels((bounds.height - image.size.height) / 2.0)), size: image.size))
         }
-        
+
         let outerPath = UIBezierPath(rect: CGRect(origin: .zero, size: size))
         let innerPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8.0)
         outerPath.append(innerPath)
@@ -216,13 +216,13 @@ public struct PresentationResourcesSettings {
         context.fill(CGRect(origin: .zero, size: size))
         context.restoreGState()
     })
-    
+
     public static let ton = renderSettingsIcon(name: "Ads/TonAbout", backgroundColors: [UIColor(rgb: 0x32ade6)])
- 
+
     public static let stars = generateImage(CGSize(width: 30.0, height: 30.0), contextGenerator: { size, context in
         let bounds = CGRect(origin: CGPoint(), size: size)
         context.clear(bounds)
-        
+
         let colorsArray: [CGColor] = [
             UIColor(rgb: 0xfec80f).cgColor,
             UIColor(rgb: 0xdd6f12).cgColor
@@ -231,23 +231,23 @@ public struct PresentationResourcesSettings {
         let gradient = CGGradient(colorsSpace: deviceColorSpace, colors: colorsArray as CFArray, locations: &locations)!
 
         context.drawLinearGradient(gradient, start: CGPoint(x: 0.0, y: 0.0), end: CGPoint(x: size.width, y: size.height), options: CGGradientDrawingOptions())
-        
+
         if let gradientImage, let cgImage = gradientImage.cgImage {
             context.setBlendMode(.plusLighter)
             context.draw(cgImage, in: CGRect(origin: .zero, size: size))
         }
-        
+
         if let backdropImage, let cgImage = backdropImage.cgImage {
             context.setBlendMode(.overlay)
             context.draw(cgImage, in: CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: size))
         }
-        
+
         context.setBlendMode(.normal)
-        
+
         if let image = generateTintedImage(image: UIImage(bundleImageName: "Item List/Icons/Stars"), color: UIColor(rgb: 0xffffff)), let cgImage = image.cgImage {
             context.draw(cgImage, in: CGRect(origin: CGPoint(x: floorToScreenPixels((bounds.width - image.size.width) / 2.0), y: floorToScreenPixels((bounds.height - image.size.height) / 2.0)), size: image.size))
         }
-        
+
         let outerPath = UIBezierPath(rect: CGRect(origin: .zero, size: size))
         let innerPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8.0)
         outerPath.append(innerPath)
@@ -261,11 +261,11 @@ public struct PresentationResourcesSettings {
         context.fill(CGRect(origin: .zero, size: size))
         context.restoreGState()
     })
-    
+
     public static let premiumGift = generateImage(CGSize(width: 30.0, height: 30.0), contextGenerator: { size, context in
         let bounds = CGRect(origin: CGPoint(), size: size)
         context.clear(bounds)
-        
+
         let colorsArray: [CGColor] = [
             UIColor(rgb: 0x3ba1f2).cgColor,
             UIColor(rgb: 0x3ba1f2).cgColor,
@@ -276,23 +276,23 @@ public struct PresentationResourcesSettings {
         var locations: [CGFloat] = [0.0, 0.15, 0.5, 0.85, 1.0]
         let gradient = CGGradient(colorsSpace: deviceColorSpace, colors: colorsArray as CFArray, locations: &locations)!
         context.drawLinearGradient(gradient, start: CGPoint(x: 0.0, y: 0.0), end: CGPoint(x: size.width, y: size.height), options: CGGradientDrawingOptions())
-        
+
         if let gradientImage, let cgImage = gradientImage.cgImage {
             context.setBlendMode(.plusLighter)
             context.draw(cgImage, in: CGRect(origin: .zero, size: size))
         }
-        
+
         if let backdropImage, let cgImage = backdropImage.cgImage {
             context.setBlendMode(.overlay)
             context.draw(cgImage, in: CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: size))
         }
-        
+
         context.setBlendMode(.normal)
-        
+
         if let image = generateTintedImage(image: UIImage(bundleImageName: "Item List/Icons/Gift"), color: UIColor(rgb: 0xffffff)), let cgImage = image.cgImage {
             context.draw(cgImage, in: CGRect(origin: CGPoint(x: floorToScreenPixels((bounds.width - image.size.width) / 2.0), y: floorToScreenPixels((bounds.height - image.size.height) / 2.0)), size: image.size))
         }
-        
+
         let outerPath = UIBezierPath(rect: CGRect(origin: .zero, size: size))
         let innerPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8.0)
         outerPath.append(innerPath)
@@ -306,22 +306,22 @@ public struct PresentationResourcesSettings {
         context.fill(CGRect(origin: .zero, size: size))
         context.restoreGState()
     })
-    
+
     public static let bot = renderSettingsIcon(name: "Item List/Icons/Bot", backgroundColors: [colorBlue])
 
     public static let passport = renderAttachAppIcon(iconImage: UIImage(bundleImageName: "Settings/Menu/Passport"))
     public static let watch = renderAttachAppIcon(iconImage: UIImage(bundleImageName: "Settings/Menu/Watch"))
-    
+
     public static let support = renderSettingsIcon(name: "Item List/Icons/Support", backgroundColors: [colorOrange])
     public static let faq = renderSettingsIcon(name: "Item List/Icons/Faq", backgroundColors: [colorLightBlue])
     public static let tips = renderSettingsIcon(name: "Item List/Icons/Tips", backgroundColors: [UIColor(rgb: 0xffcc02)])
-        
+
     public static let changePhoneNumber = renderSettingsIcon(name: "Item List/Icons/ChangePhone", backgroundColors: [colorPurple])
     public static let deleteAddAccount = renderSettingsIcon(name: "Item List/Icons/Member", backgroundColors: [colorBlue])
     public static let deleteSetTwoStepAuth = renderSettingsIcon(name: "Item List/Icons/Key", backgroundColors: [colorViolet])
     public static let deleteChats = renderSettingsIcon(name: "Item List/Icons/Delete", backgroundColors: [colorRed])
     public static let clearSynced = renderSettingsIcon(name: "Item List/Icons/Group", backgroundColors: [colorOrange])
-    
+
     public static let groupType = renderSettingsIcon(name: "Item List/Icons/Members", backgroundColors: [colorBlue])
     public static let channelType = renderSettingsIcon(name: "Item List/Icons/Channel", backgroundColors: [colorBlue])
     public static let chatHistory = renderSettingsIcon(name: "Item List/Icons/Chat", backgroundColors: [colorGreen])
@@ -343,7 +343,7 @@ public struct PresentationResourcesSettings {
     public static let emojiStatus = renderSettingsIcon(name: "Item List/Icons/Status", backgroundColors: [colorBlue])
     public static let location = renderSettingsIcon(name: "Item List/Icons/Location", backgroundColors: [colorLightBlue])
     public static let groupRequests = renderAttachAppIcon(iconImage: UIImage(bundleImageName: "Chat/Info/GroupRequestsIcon"))
-    
+
     public static let calls = renderSettingsIcon(name: "Item List/Icons/Phone", backgroundColors: [colorOrange])
     public static let messages = renderSettingsIcon(name: "Item List/Icons/Chat", backgroundColors: [colorViolet])
     public static let filesGreen = renderSettingsIcon(name: "Item List/Icons/File", backgroundColors: [colorGreen])

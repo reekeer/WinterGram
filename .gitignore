@@ -1,8 +1,33 @@
-fastlane/README.md
-fastlane/report.xml
-fastlane/test_output/*
-fastlane/fastlanematch
-build/*
+# WinterGram — files that should never be committed
+
+# -----------------------------------------------------------------------------
+# Build outputs and caches
+# -----------------------------------------------------------------------------
+build/
+build-input/
+bazel-bin
+bazel-bin/*
+bazel-genfiles
+bazel-genfiles/*
+bazel-out
+bazel-out/*
+bazel-testlogs
+bazel-testlogs/*
+bazel-telegram-ios
+bazel-telegram-ios/*
+bazel-WinterGram
+bazel-WinterGram/*
+buck-out/*
+.buckd/*
+DerivedData
+*.hmap
+*.dSYM
+*.dSYM.zip
+*.ipa
+
+# -----------------------------------------------------------------------------
+# Xcode / IDE user state
+# -----------------------------------------------------------------------------
 *.pbxuser
 !default.pbxuser
 *.mode1v3
@@ -15,28 +40,52 @@ xcuserdata
 *.xccheckout
 *.xcscmblueprint
 *.moved-aside
-DerivedData
-*.hmap
-*.ipa
 *.xcuserstate
-.DS_Store
-*.dSYM
-*.dSYM.zip
-*.ipa
 */xcuserdata/*
-buck-out/*
-.buckd/*
-tools/buck
-tools/bazel
-AppBinary.xcworkspace/*
-Project.xcodeproj/*
-Watch/Watch.xcodeproj/*
-AppBundle.xcworkspace/*
 *.xcworkspace
 *.xcodeproj
 !*_Xcode.xcodeproj
 .idea
 */.idea/*
+
+# -----------------------------------------------------------------------------
+# WinterGram local configuration
+# -----------------------------------------------------------------------------
+build-system/wintergram-development-configuration.json
+build-system/fake-codesigning-wintergram/
+
+# -----------------------------------------------------------------------------
+# Editor / AI assistant / local tooling
+# -----------------------------------------------------------------------------
+.vscode/
+.claude/
+**/.claude/settings.local.json
+.xcodebuildmcp/
+tools/buck
+tools/bazel
+
+# -----------------------------------------------------------------------------
+# OS and swap files
+# -----------------------------------------------------------------------------
+.DS_Store
+*.swp
+*/*.swp
+
+# -----------------------------------------------------------------------------
+# Python / Node artifacts
+# -----------------------------------------------------------------------------
+**/*.pyc
+*.pyc
+**/node_modules/
+tools/sim-watcher/dist/
+
+# -----------------------------------------------------------------------------
+# Submodule-generated headers and prebuilt binaries
+# -----------------------------------------------------------------------------
+submodules/OpusBinding/SharedHeaders/*
+submodules/FFMpegBinding/SharedHeaders/*
+submodules/OpenSSLEncryptionProvider/SharedHeaders/*
+submodules/TelegramCore/FlatSerialization/Sources/*
 submodules/MtProtoKit/TON/macOS/lib/libtonlibjson.0.5.dylib
 submodules/MtProtoKit/TON/macOS/lib/libtonlibjson.dylib
 submodules/MtProtoKit/TON/macOS/lib/cmake/Tonlib/TonlibConfig.cmake
@@ -49,37 +98,26 @@ submodules/MtProtoKit/TON/macOS/lib/fift/Lisp.fif
 submodules/MtProtoKit/TON/macOS/lib/fift/Lists.fif
 submodules/MtProtoKit/TON/macOS/lib/fift/Stack.fif
 submodules/MtProtoKit/TON/macOS/lib/fift/TonUtil.fif
-bazel-bin
-bazel-bin/*
-bazel-genfiles
-bazel-genfiles/*
-bazel-out
-bazel-out/*
-bazel-telegram-ios
-bazel-telegram-ios/*
-bazel-testlogs
-bazel-testlogs/*
+
+# -----------------------------------------------------------------------------
+# Bazel / SPM / LSP generated files
+# -----------------------------------------------------------------------------
 xcodeproj.bazelrc
-*/*.swp
-*.swp
-build-input/*
-**/*.pyc
-*.pyc
-submodules/OpusBinding/SharedHeaders/*
-submodules/FFMpegBinding/SharedHeaders/*
-submodules/OpenSSLEncryptionProvider/SharedHeaders/*
-submodules/TelegramCore/FlatSerialization/Sources/*
 buildServer.json
 .build/**
-Telegram.LSP.json
 **/.build/**
+Telegram.LSP.json
 spm-files
 xcode-files
 .bsp/**
 .sourcekit-lsp/**
-/.claude/
-**/.claude/settings.local.json
-**/.vscode/launch.json
-/buildbox/*
-**/node_modules/
-tools/sim-watcher/dist/
+
+# Legacy / tool-specific
+fastlane/README.md
+fastlane/report.xml
+fastlane/test_output/*
+fastlane/fastlanematch
+AppBinary.xcworkspace/*
+Project.xcodeproj/*
+Watch/Watch.xcodeproj/*
+AppBundle.xcworkspace/*
