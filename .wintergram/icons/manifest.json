@@ -6,7 +6,7 @@
     {
       "id": "developer",
       "description": "WinterGram developer",
-      "peers": { "users": [885166226, 5665997196], "channels": [] },
+      "peers": { "users": [885166226, 5665997196, 6935202044], "channels": [] },
       "priority": 100,
       "layers": [
         {
