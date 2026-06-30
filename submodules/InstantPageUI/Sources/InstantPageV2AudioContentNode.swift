@@ -195,8 +195,7 @@ final class InstantPageV2AudioContentNode: ASDisplayNode {
         self.descriptionAttributedString = InstantPageV2AudioContentNode.descriptionString(file: self.file, incoming: incoming, presentationData: presentationData)
         let messageTheme = incoming ? presentationData.theme.chat.message.incoming : presentationData.theme.chat.message.outgoing
         self.statusNode.backgroundNodeColor = messageTheme.mediaActiveControlColor
-        // foreground/overlay also depend on incoming + theme (set at construction) — refresh them
-        // too so the play glyph isn't miscolored after an in-place theme/direction change.
+        // Refresh colors after an in-place theme or direction change.
         self.statusNode.foregroundNodeColor = (incoming && messageTheme.mediaActiveControlColor.rgb != 0xffffff) ? .white : .clear
         self.statusNode.overlayForegroundNodeColor = presentationData.theme.chat.message.mediaOverlayControlColors.foregroundColor
 

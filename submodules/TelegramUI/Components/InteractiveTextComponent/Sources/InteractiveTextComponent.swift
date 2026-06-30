@@ -2917,8 +2917,7 @@ final class TextContentItemLayer: SimpleLayer {
             effectiveCharacterDrawCount = maxCharacterDrawCount
         } else {
             if self.previousMaxCharacterDrawCount > 0 || !self.animatingSnippetLayers.isEmpty {
-                // Reveal finished — compute total character count so mask and snippets
-                // can continue updating until all snippet animations complete
+                // Keep mask active until all snippet animations finish.
                 var totalCharCount = 0
                 for line in lines {
                     if let characterRects = line.characterRects {
@@ -2932,7 +2931,7 @@ final class TextContentItemLayer: SimpleLayer {
                 }
                 effectiveCharacterDrawCount = totalCharCount
             } else {
-                // Nothing left to animate — remove the mask
+                // Remove mask when nothing remains to animate.
                 if let _ = self.revealMaskLayer {
                     self.renderNodeContainer.mask = nil
                     self.revealMaskLayer = nil
@@ -3036,8 +3035,7 @@ final class TextContentItemLayer: SimpleLayer {
             }
         }
 
-        // Build mask rects — use the lowest animating snippet index as the mask limit
-        // so the mask never extends past any character still being animated
+        // Limit mask to the lowest animating snippet index.
         let maskCharacterLimit: Int
         if let lowestAnimating = self.animatingSnippetLayers.min(by: { $0.characterIndex < $1.characterIndex })?.characterIndex {
             maskCharacterLimit = lowestAnimating

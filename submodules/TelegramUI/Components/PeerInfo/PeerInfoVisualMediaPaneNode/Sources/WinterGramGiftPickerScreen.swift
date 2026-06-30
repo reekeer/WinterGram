@@ -9,8 +9,7 @@ import AccountContext
 import TelegramPresentationData
 import GiftItemComponent
 
-// WinterGram: a simple grid picker of all regular (generic) star gifts — including sold-out ones still
-// present in the cached catalog — used to add a NON-unique gift "visually" to the profile.
+// WinterGram: grid picker of regular star gifts for adding a non-unique gift to the profile.
 public final class WinterGramGiftPickerScreen: ViewController {
     private final class Node: ViewControllerTracingNode {
         private weak var controller: WinterGramGiftPickerScreen?
@@ -36,8 +35,7 @@ public final class WinterGramGiftPickerScreen: ViewController {
             self.scrollNode.view.alwaysBounceVertical = true
             self.addSubnode(self.scrollNode)
 
-            // Make sure the gift catalog is fetched/cached — otherwise the picker would be empty if the
-            // user never opened a gift screen before.
+            // Ensure the gift catalog is cached so the picker is not empty on first open.
             self.keepUpdatedDisposable = context.engine.payments.keepStarGiftsUpdated().startStrict()
 
             self.disposable = (context.engine.payments.cachedStarGifts()

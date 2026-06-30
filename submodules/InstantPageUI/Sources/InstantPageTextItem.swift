@@ -364,8 +364,7 @@ public final class InstantPageTextItem: InstantPageItem {
     }
 
     public func attributesAtPoint(_ point: CGPoint, orNearest: Bool) -> (Int, [NSAttributedString.Key: Any])? {
-        // Hit-testing (taps on links/entities) wants the character under the finger — keep the
-        // strict, clamping behavior.
+        // Clamp taps to the character under the finger.
         if !orNearest {
             return self.attributesAtPoint(point)
         }
@@ -402,8 +401,7 @@ public final class InstantPageTextItem: InstantPageItem {
         } else if point.x >= lineFrame.maxX {
             // Trailing edge: return the line's upper bound (one past its last character) so a
             // right-handle drag can include the last character/item of the line. The selection
-            // upper bound is exclusive, so clamping to the last character's index — as the strict
-            // path does — would always leave it unselected. Mirrors Display.TextNode.
+            // upper bound is exclusive, so use the line end. Mirrors Display.TextNode.
             index = lineRange.location + lineRange.length
         } else {
             index = CTLineGetStringIndexForPosition(line.line, CGPoint(x: point.x - lineFrame.minX, y: 0.0))
@@ -964,7 +962,7 @@ func attributedStringForRichText(_ text: RichText, styleStack: InstantPageTextSt
             // Size the inline emoji to the font's line height (A + D) plus a 4pt bump at the 17pt
             // body font (scaled proportionally). Must match the V2 layout's emoji cell size
             // (InstantPageV2Layout.swift). The run delegate still reports the font's own
-            // ascent/descent (below), so the line height is unchanged — only the emoji width changes.
+            // ascent/descent, so only the emoji width changes.
             let itemSize = font.ascender - font.descender + 4.0 * font.pointSize / 17.0
             let extentBuffer = UnsafeMutablePointer<RunStruct>.allocate(capacity: 1)
             extentBuffer.initialize(to: RunStruct(ascent: font.ascender, descent: font.descender, width: itemSize))

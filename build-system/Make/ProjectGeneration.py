@@ -49,7 +49,10 @@ def generate_xcodeproj(build_environment: BuildEnvironment, disable_extensions, 
 
     call_executable(bazel_generate_arguments)
 
-    xcodeproj_path = '{}.xcodeproj'.format(app_target_spec.replace(':', '/'))
+    if target_name == 'Telegram':
+        xcodeproj_path = 'Telegram/WinterGram.xcodeproj'
+    else:
+        xcodeproj_path = '{}.xcodeproj'.format(app_target_spec.replace(':', '/'))
     return xcodeproj_path
 
 

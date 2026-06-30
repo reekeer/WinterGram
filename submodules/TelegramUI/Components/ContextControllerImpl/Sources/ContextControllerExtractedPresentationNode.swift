@@ -199,7 +199,7 @@ private final class PortalTransitionStaging {
     /// Tears down staging. Reparents contentNode into the requested destination,
     /// removes clone from its overlay host, removes wrapper from surface.
     /// All operations are explicit; we rely on Telegram's manual-animation policy
-    /// (no implicit CALayer actions) — no CATransaction wrapping needed.
+    /// without implicit CALayer actions.
     ///
     /// `presentationScale` re-application is intentionally not handled here: the
     /// portal path is gated on `contentNode.presentationScale == 1.0` in CCEPN's
@@ -223,7 +223,7 @@ private final class PortalTransitionStaging {
             // ContentContainingNode/View added contentNode at init). Capturing
             // contentNode.supernode at staging-enter time was overengineered: during
             // animateOut staging that's offsetContainerNode (CCEPN's transient host),
-            // which gets torn down with CCEPN — leaving the bubble parentless.
+            // which gets torn down with CCEPN, leaving the bubble parentless.
             switch containingItem {
             case let .node(containingNode):
                 containingNode.addSubnode(containingNode.contentNode)
@@ -761,7 +761,7 @@ final class ContextControllerExtractedPresentationNode: ASDisplayNode, ContextCo
                 contentNodeValue.sourceTransitionSurface = takeInfo.sourceTransitionSurface
 
                 // Mirror any ancestor scale on the source (e.g. a sheet's container transform) onto the offset
-                // container so the extracted contents render at the same visual size as in-place — without this
+                // container so the extracted contents keep the same visual size.
                 // they pop to 1:1 when reparented into the unscaled overlay window.
                 let sourceView = takeInfo.containingItem.view
                 let modeledWidth = sourceView.bounds.width
@@ -1425,7 +1425,7 @@ final class ContextControllerExtractedPresentationNode: ASDisplayNode, ContextCo
                     // Use ItemContentNode.frame (already includes contentVerticalOffset and
                     // additionalVisibleOffsetY from the layout pass) plus
                     // containingItem.contentRect.origin to derive the bubble's actual rest
-                    // window rect. Using bare `contentRect` skips those offsets — when reactions
+                    // window rect. Using bare `contentRect` skips those offsets, so reactions
                     // are visible (additionalVisibleOffsetY = reactionContextNode.visibleExtensionDistance)
                     // the wrapper would sit ~10pt above the bubble's true rest, visibly offsetting
                     // the portal mirror until staging.settle reparents into offsetContainerNode.
@@ -1451,7 +1451,7 @@ final class ContextControllerExtractedPresentationNode: ASDisplayNode, ContextCo
                         // is visible at the chat-bubble slot; final (overlay clone, above
                         // chrome) is visible at the menu position. Final fade-in begins
                         // `crossfadeOverlap` seconds before source fade-out, so the final
-                        // is already on screen before the source starts dropping out — no
+                        // is already on screen before the source starts dropping out.
                         // single-frame seam at the handoff. Each fade runs for a fixed 0.1s.
                         if let wrapper = staging.wrapper, let clone = staging.clone {
                             let sourceFadeDelay = 0.12 * duration
@@ -1759,7 +1759,7 @@ final class ContextControllerExtractedPresentationNode: ASDisplayNode, ContextCo
                         // Mid-dismiss crossfade: clone (overlay portal target, above chrome)
                         // is visible at the menu position; final (chat-tree wrapper, behind
                         // chrome) is visible once the bubble settles at the chat-bubble
-                        // slot. Late handoff — clone carries the bubble through most of the
+                        // slot. The clone carries the bubble through most of the
                         // dismiss; final picks up only as the bubble lands. Source fade-out
                         // is anchored at 80% of the spring duration; final fade-in starts
                         // `crossfadeOverlap` seconds earlier. Each fade runs for 0.1s.
@@ -2137,5 +2137,4 @@ final class ContextControllerExtractedPresentationNode: ASDisplayNode, ContextCo
         }
     }
 }
-
 

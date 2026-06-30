@@ -443,8 +443,7 @@ func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, ur
                 navigationController?.pushViewController(controller)
                 return
             }
-            // WinterGram: wnt://profile opens the current account's own profile; wnt://profile?id=<id>
-            // opens that user's profile (resolved from the local cache — works for known peers).
+            // Open the current or requested cached profile.
             if host == "profile" {
                 let targetPeerId: EnginePeer.Id
                 if let idString = parsedUrl.query.flatMap({ QueryParameters($0)?["id"] }), let idValue = Int64(idString) {

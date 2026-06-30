@@ -3,7 +3,7 @@ import Foundation
 // Estimates the approximate registration date of a Telegram account from its user ID.
 // Telegram user IDs are allocated roughly monotonically over time, so a piecewise-linear
 // interpolation between known (id, date) anchor points yields a usable estimate. This is an
-// approximation only — it is never exact and is meant for display with an "≈" prefix.
+// approximation only and is meant for display with an "≈" prefix.
 public func winterGramEstimatedRegistrationDate(userId: Int64) -> Date? {
     guard userId > 0 else {
         return nil

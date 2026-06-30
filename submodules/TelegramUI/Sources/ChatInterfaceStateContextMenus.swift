@@ -1434,6 +1434,18 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                     })))
                 }
 
+                if let deletedAttribute = message.attributes.first(where: { $0 is WinterGramDeletedMessageAttribute }) as? WinterGramDeletedMessageAttribute {
+                    // WinterGram: surface WHEN a preserved message was deleted, in the long-press menu,
+                    // instead of stamping a coloured time pill onto the bubble.
+                    let deletedDateText = humanReadableStringForTimestamp(strings: chatPresentationInterfaceState.strings, dateTimeFormat: chatPresentationInterfaceState.dateTimeFormat, timestamp: deletedAttribute.date, alwaysShowTime: true, allowYesterday: true, format: nil).string
+                    let deletedMark = currentWinterGramSettings.deletedMark.isEmpty ? "🧹" : currentWinterGramSettings.deletedMark
+                    actions.append(.action(ContextMenuActionItem(text: "\(deletedMark) \(deletedDateText)", textColor: .primary, icon: { theme in
+                        return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Delete"), color: theme.actionSheet.primaryTextColor)
+                    }, action: { _, f in
+                        f(.default)
+                    })))
+                }
+
                 if currentWinterGramSettings.showPeerId != .hidden {
                     actions.append(.action(ContextMenuActionItem(text: "Copy Message ID", icon: { theme in
                         return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Copy"), color: theme.actionSheet.primaryTextColor)

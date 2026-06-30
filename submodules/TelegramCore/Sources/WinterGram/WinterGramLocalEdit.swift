@@ -2,7 +2,7 @@ import Foundation
 import Postbox
 import SwiftSignalKit
 
-// Replaces a message's text locally only — no network edit is performed, so the
+// Replaces a message's text locally without a network edit, so the
 // server never learns about the change and no "edited" mark is added. The change
 // persists in the local database until the message is re-fetched from the server.
 public func winterGramEditMessageLocally(postbox: Postbox, messageId: MessageId, text: String) -> Signal<Void, NoError> {

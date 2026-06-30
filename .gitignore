@@ -53,6 +53,7 @@ xcuserdata
 # -----------------------------------------------------------------------------
 build-system/wintergram-development-configuration.json
 build-system/fake-codesigning-wintergram/
+build-system/fake-codesigning-generated/
 
 # -----------------------------------------------------------------------------
 # Editor / AI assistant / local tooling
@@ -121,3 +122,6 @@ AppBinary.xcworkspace/*
 Project.xcodeproj/*
 Watch/Watch.xcodeproj/*
 AppBundle.xcworkspace/*
+
+# wintergram badge preview gifs
+.wintergram/icons/preview_*.gif

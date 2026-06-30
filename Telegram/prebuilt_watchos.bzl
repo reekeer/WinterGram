@@ -4,8 +4,8 @@
 against an exported tgwatch source tree, optionally codesigns the result, and exposes
 it through the providers that `ios_application(watch_application = ...)` consumes:
 
-  * AppleBundleInfo      — bundle metadata (the host reads only `.product_type`).
-  * AppleEmbeddableInfo  — `watch_bundles` (the zipped .app placed under Watch/).
+  * AppleBundleInfo: bundle metadata (the host reads only `.product_type`).
+  * AppleEmbeddableInfo: `watch_bundles` (the zipped .app placed under Watch/).
 
 The watch source tree is the committed in-repo snapshot at `Telegram/WatchApp/` (tracked
 inputs). To update it, re-sync from the standalone tgwatch repo via

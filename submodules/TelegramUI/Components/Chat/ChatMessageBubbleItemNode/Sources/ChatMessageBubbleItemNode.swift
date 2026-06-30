@@ -3897,7 +3897,7 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
         let targetAlpha: CGFloat = isDeleted ? 0.45 : 1.0
         animation.animator.updateAlpha(layer: strongSelf.mainContextSourceNode.contentNode.layer, alpha: targetAlpha, completion: nil)
 
-        if hasDeletedMark, let winterGramDeletedAttribute = winterGramDeletedAttribute {
+        if hasDeletedMark {
             let deletedIconNode: ASImageNode
             if let current = strongSelf.winterGramDeletedIconNode {
                 deletedIconNode = current
@@ -3909,7 +3909,9 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
                 strongSelf.insertSubnode(newNode, belowSubnode: strongSelf.messageAccessibilityArea)
                 deletedIconNode = newNode
             }
-            deletedIconNode.image = winterGramDeletedBadgeImage(emoji: currentWinterGramSettings.deletedMark, pillColor: item.presentationData.theme.theme.list.itemDestructiveColor, timeText: currentWinterGramSettings.showDeletedTime ? winterGramDeletedBadgeTimeText(winterGramDeletedAttribute.date) : nil)
+            // A small, unobtrusive mark (the chosen emoji, default 🧹) — NOT a coloured time pill.
+            // The deletion time lives in the long-press context menu instead (see ChatInterfaceStateContextMenus).
+            deletedIconNode.image = winterGramDeletedBadgeImage(emoji: currentWinterGramSettings.deletedMark, pillColor: item.presentationData.theme.theme.list.itemDestructiveColor, timeText: nil)
             let iconSize = deletedIconNode.image?.size ?? CGSize(width: 16.0, height: 16.0)
             let spacing: CGFloat = 5.0
             let iconY = backgroundFrame.maxY - iconSize.height - 2.0

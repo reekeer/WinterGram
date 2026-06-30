@@ -35,28 +35,29 @@ private enum WinterGramMainSettingsSection: Int32 {
     case links
 }
 
-// A link row shown in the "Links" section: SF Symbol, label, accent-coloured value and target URL.
 private struct WinterGramLink {
     let symbol: String
     let imageName: String?
     let title: String
     let value: String
     let url: String
+    let color: UIColor
 
-    init(symbol: String, imageName: String? = nil, title: String, value: String, url: String) {
+    init(symbol: String, imageName: String? = nil, title: String, value: String, url: String, color: UIColor = UIColor(rgb: 0x8E8E93)) {
         self.symbol = symbol
         self.imageName = imageName
         self.title = title
         self.value = value
         self.url = url
+        self.color = color
     }
 }
 
 private let winterGramLinks: [WinterGramLink] = [
-    WinterGramLink(symbol: "paperplane.fill", title: "Channel", value: "@wntgram", url: "https://t.me/wntgram"),
-    WinterGramLink(symbol: "sparkles", title: "Beta", value: "@wntbeta", url: "https://t.me/wntbeta"),
-    WinterGramLink(symbol: "bubble.left.and.bubble.right.fill", title: "Chat", value: "@wntForum", url: "https://t.me/wntForum"),
-    WinterGramLink(symbol: "puzzlepiece.extension.fill", title: "Plugins", value: "@wntPlugins", url: "https://t.me/wntPlugins"),
+    WinterGramLink(symbol: "paperplane.fill", title: "Channel", value: "@wntgram", url: "https://t.me/wntgram", color: UIColor(rgb: 0x2AABEE)),
+    WinterGramLink(symbol: "sparkles", title: "Beta", value: "@wntbeta", url: "https://t.me/wntbeta", color: UIColor(rgb: 0xFF9F0A)),
+    WinterGramLink(symbol: "bubble.left.and.bubble.right.fill", title: "Chat", value: "@wntForum", url: "https://t.me/wntForum", color: UIColor(rgb: 0x34C759)),
+    WinterGramLink(symbol: "puzzlepiece.extension.fill", title: "Plugins", value: "@wntPlugins", url: "https://t.me/wntPlugins", color: UIColor(rgb: 0xBF5AF2)),
     WinterGramLink(symbol: "link", imageName: "Item List/Icons/GitHub", title: "GitHub", value: "reekeer/WinterGram", url: "https://github.com/reekeer/WinterGram")
 ]
 
@@ -150,7 +151,7 @@ private enum WinterGramMainSettingsEntry: ItemListNodeEntry {
         case let .link(_, link):
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                icon: winterGramCategoryIcon(symbolName: link.symbol, imageName: link.imageName, backgroundColor: UIColor(rgb: 0x8E8E93)),
+                icon: winterGramCategoryIcon(symbolName: link.symbol, imageName: link.imageName, backgroundColor: link.color),
                 title: wntOption(link.title, presentationData.strings),
                 label: link.value,
                 labelStyle: .coloredText(accent),
@@ -162,15 +163,15 @@ private enum WinterGramMainSettingsEntry: ItemListNodeEntry {
                 }
             )
         case .ayugram:
-            category = .ayugram; title = "Core"; iconName = "shield.fill"; iconColor = UIColor(rgb: 0x5856D6)
+            category = .ayugram; title = "Core"; iconName = "shield.fill"; iconColor = UIColor(rgb: 0x0A84FF)
         case .features:
-            category = .antiFeatures; title = "Features"; iconName = "sparkles"; iconColor = UIColor(rgb: 0xFF9500)
+            category = .antiFeatures; title = "Features"; iconName = "sparkles"; iconColor = UIColor(rgb: 0xFF9F0A)
         case .other:
             category = .other; title = "Other"; iconName = "ellipsis.circle"; iconColor = UIColor(rgb: 0x8E8E93)
         case .spoofing:
-            category = .spoofing; title = "Spoofing"; iconName = "theatermasks"; iconColor = UIColor(rgb: 0xFF3B30)
+            category = .spoofing; title = "Spoofing"; iconName = "theatermasks.fill"; iconColor = UIColor(rgb: 0xBF5AF2)
         case .hiddenArchive:
-            category = .stash; title = "Hidden Archive"; iconName = "tray.full.fill"; iconColor = UIColor(rgb: 0x34C759)
+            category = .stash; title = "Hidden Archive"; iconName = "tray.full.fill"; iconColor = UIColor(rgb: 0x30D158)
         }
         return ItemListDisclosureItem(
             presentationData: presentationData,
@@ -187,38 +188,38 @@ private enum WinterGramMainSettingsEntry: ItemListNodeEntry {
     }
 }
 
-/// Renders a rounded-rect backplate filled with `backgroundColor` and a white SF Symbol centred on
-/// top — a clean settings tile look.
 private func winterGramCategoryIcon(_ symbolName: String, _ backgroundColor: UIColor) -> UIImage? {
     return winterGramCategoryIcon(symbolName: symbolName, imageName: nil, backgroundColor: backgroundColor)
 }
 
 private func winterGramCategoryIcon(symbolName: String, imageName: String?, backgroundColor: UIColor) -> UIImage? {
-    let size = CGSize(width: 44.0, height: 44.0)
+    // Match the iOS-Settings-style colored icons Telegram uses for settings rows: the image *is* the
+    // rounded colored backplate (~30pt), centered by ItemListDisclosureItem in its icon column, with a
+    // white glyph that has comfortable padding. The previous 44pt image held a small 34pt backplate, so
+    // icons looked oversized/off-centre next to standard rows and the backplate looked too small.
+    let size = CGSize(width: 32.0, height: 32.0)
     let renderer = UIGraphicsImageRenderer(size: size)
     return renderer.image { _ in
         let bounds = CGRect(origin: .zero, size: size)
-        // Smaller colored backplate with a transparent margin so the white icon dominates.
-        let backplateInset: CGFloat = 5.0
-        let backplateRect = bounds.insetBy(dx: backplateInset, dy: backplateInset)
-        let backplate = UIBezierPath(roundedRect: backplateRect, cornerRadius: 9.0)
+        // ~0.225 of the side gives the iOS app-icon "squircle" feel at this size.
+        let backplate = UIBezierPath(roundedRect: bounds, cornerRadius: 7.5)
         backgroundColor.setFill()
         backplate.fill()
         let icon: UIImage?
         if let imageName = imageName {
             icon = UIImage(bundleImageName: imageName)?.withRenderingMode(.alwaysTemplate)
         } else {
-            icon = UIImage(systemName: symbolName, withConfiguration: UIImage.SymbolConfiguration(pointSize: 28.0, weight: .medium))?.withRenderingMode(.alwaysTemplate)
+            icon = UIImage(systemName: symbolName, withConfiguration: UIImage.SymbolConfiguration(pointSize: 20.0, weight: .bold))?.withRenderingMode(.alwaysTemplate)
         }
         guard let symbol = icon?.withTintColor(.white, renderingMode: .alwaysOriginal) else {
             return
         }
-        let maxIconSide: CGFloat = 30.0
+        let maxIconSide: CGFloat = 21.0
         let symbolScale = min(maxIconSide / max(symbol.size.width, 1.0), maxIconSide / max(symbol.size.height, 1.0), 1.0)
         let symbolSize = CGSize(width: symbol.size.width * symbolScale, height: symbol.size.height * symbolScale)
         symbol.draw(in: CGRect(
-            x: floor((size.width - symbolSize.width) / 2.0),
-            y: floor((size.height - symbolSize.height) / 2.0),
+            x: (size.width - symbolSize.width) / 2.0,
+            y: (size.height - symbolSize.height) / 2.0,
             width: symbolSize.width,
             height: symbolSize.height
         ))
@@ -263,7 +264,6 @@ public func winterGramMainSettingsController(context: AccountContext) -> ViewCon
             pushControllerImpl?(winterGramSettingsController(context: context, category: category))
         },
         openUrl: { url in
-            // Open WinterGram channels in-app (resolve t.me links) rather than bouncing to the browser.
             let presentationData = context.sharedContext.currentPresentationData.with { $0 }
             context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: url, forceExternal: false, presentationData: presentationData, navigationController: getNavigationControllerImpl?(), dismissInput: {})
         },

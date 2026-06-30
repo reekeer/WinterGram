@@ -393,7 +393,9 @@ private enum WinterGramDeletedMessagesControllerEntry: ItemListNodeEntry {
         case let .topChat(_, peer, count, size, _):
             let sizeFormatting = DataSizeStringFormatting(strings: presentationData.strings, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
             let subtitle = "\(count) • \(dataSizeString(size, formatting: sizeFormatting))"
-            return ItemListPeerItem(presentationData: presentationData, dateTimeFormat: presentationData.dateTimeFormat, nameDisplayOrder: presentationData.nameDisplayOrder, context: arguments.context, peer: peer, presence: nil, text: .text(subtitle, .secondary), label: .none, editing: ItemListPeerItemEditing(editable: false, editing: false, revealed: nil), switchValue: nil, enabled: true, selectable: false, sectionId: self.section, action: nil, setPeerIdWithRevealedOptions: { _, _ in }, removePeer: { _ in })
+            return ItemListPeerItem(presentationData: presentationData, dateTimeFormat: presentationData.dateTimeFormat, nameDisplayOrder: presentationData.nameDisplayOrder, context: arguments.context, peer: peer, presence: nil, text: .text(subtitle, .secondary), label: .none, editing: ItemListPeerItemEditing(editable: false, editing: false, revealed: nil), switchValue: nil, enabled: true, selectable: true, sectionId: self.section, action: {
+                arguments.openChat(peer)
+            }, setPeerIdWithRevealedOptions: { _, _ in }, removePeer: { _ in })
         case let .delete(_, text, enabled):
             return ItemListPeerActionItem(presentationData: presentationData, style: .blocks, icon: PresentationResourcesItemList.deleteIconImage(presentationData.theme), title: text, sectionId: self.section, color: enabled ? .destructive : .disabled, editing: false, action: enabled ? {
                 arguments.deleteSelected()
@@ -414,11 +416,13 @@ private final class WinterGramDeletedMessagesControllerArguments {
     let context: AccountContext
     let toggleCategory: (WinterGramDeletedMessageCategory) -> Void
     let deleteSelected: () -> Void
-    
-    init(context: AccountContext, toggleCategory: @escaping (WinterGramDeletedMessageCategory) -> Void, deleteSelected: @escaping () -> Void) {
+    let openChat: (EnginePeer) -> Void
+
+    init(context: AccountContext, toggleCategory: @escaping (WinterGramDeletedMessageCategory) -> Void, deleteSelected: @escaping () -> Void, openChat: @escaping (EnginePeer) -> Void) {
         self.context = context
         self.toggleCategory = toggleCategory
         self.deleteSelected = deleteSelected
+        self.openChat = openChat
     }
 }
 
@@ -426,10 +430,19 @@ private func winterGramDeletedMessagesControllerEntries(stats: WinterGramDeleted
     let sizeFormatting = DataSizeStringFormatting(strings: strings, decimalSeparator: dateTimeFormat.decimalSeparator)
     
     var entries: [WinterGramDeletedMessagesControllerEntry] = []
-    
+
     entries.append(.overviewHeader(theme, strings.WinterGram_DeletedMessages_Title.uppercased()))
+
+    // Empty state: when nothing has been saved yet, drop the (otherwise empty) pie chart, the category
+    // checklist and the delete action — they read as a "cheap" empty ring — and just explain where saved
+    // deletions come from, matching the calm empty states of the native Storage Usage screen.
+    if stats.totalCount == 0 {
+        entries.append(.overviewInfo(theme, strings.WinterGram_DeletedAndEditedMessagesAreKeptLocallyOnThisDeviceOnly))
+        return entries
+    }
+
     entries.append(.overviewInfo(theme, "\(strings.WinterGram_DeletedMessages_Total): \(stats.totalCount) • \(dataSizeString(stats.totalSize, formatting: sizeFormatting))"))
-    
+
     let chartTotal = stats.categories.reduce(Int64(0)) { $0 + max(0, $1.size) }
     var chartItems: [PieChartComponent.ChartData.Item] = []
     for stat in stats.categories where stat.size > 0 {
@@ -467,9 +480,6 @@ private func winterGramDeletedMessagesControllerEntries(stats: WinterGramDeleted
             }
         }
     }
-    
-    let canDelete = !selectedCategories.isEmpty
-    entries.append(.delete(theme, strings.WinterGram_DeletedMessages_DeleteSelected, canDelete))
     
     return entries
 }
@@ -517,8 +527,12 @@ public func winterGramDeletedMessagesController(context: AccountContext) -> View
             })
         ])])
         presentControllerImpl?(actionSheet, nil)
+    }, openChat: { peer in
+        if let navigationController = context.sharedContext.mainWindow?.viewController as? NavigationController {
+            context.sharedContext.navigateToChatController(NavigateToChatControllerParams(navigationController: navigationController, context: context, chatLocation: .peer(peer)))
+        }
     })
-    
+
     let statsSignal = winterGramDeletedMessagesStats(postbox: context.account.postbox)
     let topPeersSignal = statsSignal
     |> map { stats -> [EnginePeer.Id] in
@@ -545,7 +559,22 @@ public func winterGramDeletedMessagesController(context: AccountContext) -> View
     )
     |> map { presentationData, stats, selectedCategories, topPeers -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(presentationData.strings.WinterGram_DeletedMessages_Title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
-        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: winterGramDeletedMessagesControllerEntries(stats: stats, topPeers: topPeers, selectedCategories: selectedCategories, strings: presentationData.strings, dateTimeFormat: presentationData.dateTimeFormat, theme: presentationData.theme), style: .blocks, animateChanges: true)
+
+        let canDelete = !selectedCategories.isEmpty
+        let sizeFormatting = DataSizeStringFormatting(strings: presentationData.strings, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
+        let selectedSize = stats.categories.reduce(Int64(0)) { partial, stat in
+            return selectedCategories.contains(stat.category) ? partial + max(0, stat.size) : partial
+        }
+        var footerTitle = presentationData.strings.WinterGram_DeletedMessages_DeleteSelected
+        if canDelete && selectedSize > 0 {
+            footerTitle += " " + dataSizeString(selectedSize, formatting: sizeFormatting)
+        }
+        // No saved deletions → no destructive footer (matches the empty state from the entries builder).
+        let footerItem: WinterGramDeletedMessagesFooterItem? = stats.totalCount == 0 ? nil : WinterGramDeletedMessagesFooterItem(theme: presentationData.theme, title: footerTitle, isEnabled: canDelete, action: {
+            arguments.deleteSelected()
+        })
+
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: winterGramDeletedMessagesControllerEntries(stats: stats, topPeers: topPeers, selectedCategories: selectedCategories, strings: presentationData.strings, dateTimeFormat: presentationData.dateTimeFormat, theme: presentationData.theme), style: .blocks, footerItem: footerItem, animateChanges: true)
         return (controllerState, (listState, arguments))
     }
     

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Wrapper to force xcode-select -p to return Xcode-beta path,
+# since the global xcode-select points to CommandLineTools which lacks iOS SDKs.
+if [ "$1" = "-p" ]; then
+    echo "/Applications/Xcode-beta.app/Contents/Developer"
+    exit 0
+fi
+# For all other invocations, delegate to the real xcode-select.
+exec /usr/bin/xcode-select "$@"

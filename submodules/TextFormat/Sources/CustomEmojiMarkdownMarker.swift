@@ -10,7 +10,7 @@ public func customEmojiMarkdownURL(fileId: Int64) -> String {
 
 /// Backslash-escapes only the characters that would break a marker link's
 /// display text (the `alt`): backslash, the link-text brackets, and newline.
-/// Minimal by design — the forward CommonMark parser unescapes these, so the
+/// The CommonMark parser unescapes these, so the
 /// alt round-trips. Shared by every site that emits a `[<alt>](tg://emoji?id=…)`
 /// marker so the escaping cannot drift between encoders.
 public func escapeCustomEmojiMarkdownAlt(_ string: String) -> String {
@@ -53,7 +53,7 @@ private let customEmojiMarkerRegex = try? NSRegularExpression(
 /// markdown text. Used to populate the edit compose field so it shows the
 /// animated emoji; on re-save the forward path reads the attribute's fileId back.
 ///
-/// `file` is left nil — the renderer resolves the emoji lazily from `fileId`,
+/// `file` is nil because the renderer resolves the emoji lazily from `fileId`,
 /// and the send path only needs the fileId. Known limitation: an alt containing
 /// a literal `]` is not matched (emoji alts do not contain brackets).
 public func chatInputTextWithReattachedCustomEmoji(_ markdown: String) -> NSAttributedString {

@@ -902,7 +902,7 @@ func revalidateMediaResourceReference(accountPeerId: PeerId, postbox: Postbox, n
                             }
                         }
                         // Rich-text messages (`RichTextMessageAttribute`) embed their media in the
-                        // attribute's `InstantPage`, not in `message.media` — search there too so a
+                        // attribute's `InstantPage`, not in `message.media`. Search there so a
                         // stale instant-page audio/image file reference can revalidate.
                         for attribute in message.attributes {
                             if let attribute = attribute as? RichTextMessageAttribute {

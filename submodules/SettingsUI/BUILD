@@ -56,6 +56,7 @@ swift_library(
         "//submodules/PhoneInputNode:PhoneInputNode",
         "//submodules/PhotoResources:PhotoResources",
         "//submodules/StickerResources:StickerResources",
+        "//submodules/SolidRoundedButtonNode:SolidRoundedButtonNode",
         "//submodules/ProgressNavigationButtonNode:ProgressNavigationButtonNode",
         "//submodules/RadialStatusNode:RadialStatusNode",
         "//submodules/SearchBarNode:SearchBarNode",

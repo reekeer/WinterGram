@@ -181,7 +181,7 @@ public final class InstantPageMultiTextAdapter: ASDisplayNode, TextNodeProtocol 
             // A blockquote is exploded by the layout into one text item per child line,
             // each stamped with quoteDepth > 0. Re-coalesce a run of consecutive quoted
             // segments into a single block whose lines are joined by `\n` (each carrying
-            // its own `> ` depth), matching the whole-message converter — otherwise every
+            // its own `> ` depth), matching the whole-message converter. Otherwise every
             // quote line would become its own block and be separated by a blank line.
             if depth > 0 {
                 var lines: [String] = []

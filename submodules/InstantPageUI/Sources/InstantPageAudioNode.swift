@@ -206,7 +206,7 @@ final class InstantPageAudioNode: ASDisplayNode, InstantPageNode {
         // button. An ASControl's `.touchUpInside` is cancelled by the chat ListView's gesture
         // system (the control highlights on touch-down, but the action never fires), so an
         // embedded audio control in a rich-message bubble could never start playback. A gesture
-        // recognizer coordinates with the list's gestures and fires reliably — matching the V2
+        // recognizer coordinates with the list's gestures and fires reliably, matching the V2
         // image node, the details-title hit view, and the regular file/music message. The plain
         // view sits above `statusNode` and is positioned over the icon in `layout()`. (Works in
         // V1's full-page Instant View too; gesture recognizers fire inside its scroll view.)
@@ -281,4 +281,3 @@ final class InstantPageAudioNode: ASDisplayNode, InstantPageNode {
         self.scrubbingNode.frame = CGRect(origin: CGPoint(x: leftScrubberInset, y: 26.0 + topOffset), size: CGSize(width: size.width - leftScrubberInset - rightScrubberInset, height: 15.0))
     }
 }
-

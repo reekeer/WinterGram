@@ -533,13 +533,10 @@ def resolve_configuration(base_path, bazel_command_line: BazelCommandLine, argum
     )
     aps_environment = codesigning_data.aps_environment
     if aps_environment is None:
-        # WinterGram: for unsigned sideload builds (provisioning disabled), the fake profiles
-        # don't match the custom bundle id, so no aps-environment is found. Push won't work
-        # until AltStore / SideStore / LiveContainer re-signs with the user's profile, so we
-        # fall back to a placeholder instead of failing the build.
-        if getattr(arguments, 'disableProvisioningProfiles', False):
-            print('No aps-environment found; defaulting to "development" for unsigned sideload build.')
-            aps_environment = 'development'
+        # Unsigned builds use a placeholder aps-environment instead of failing.
+        if getattr(arguments, 'disableProvisioningProfiles', False) or getattr(arguments, 'disableExtensions', False):
+            print('No aps-environment found; disabling APNs entitlement for unsigned sideload build.')
+            aps_environment = ''
         else:
             print('Could not find a valid aps-environment entitlement in the provided provisioning profiles')
             sys.exit(1)
@@ -636,7 +633,7 @@ def resolve_watch_provisioning_profile(arguments, base_path):
 
     Returns the absolute path of the profile to sign the embedded watch app with, or None
     to build the watch app UNSIGNED. None is only returned (with a warning) for
-    non-distribution codesigning — a distribution build (appstore/adhoc/enterprise) raises
+    non-distribution codesigning. A distribution build (appstore/adhoc/enterprise) raises
     instead, because the host ios_application does NOT re-sign the embedded watch app, so an
     unsigned Watch/ payload ships as-is and is silently rejected at install time. Failing
     here turns that silent "won't install" into a build error that names the missing profile.
@@ -664,11 +661,11 @@ def resolve_watch_provisioning_profile(arguments, base_path):
             '--embedWatchApp is set for a distribution build (--gitCodesigningType={ct}), but no watchkitapp '
             'provisioning profile resolved (looked for {p}).\n'
             'The {ct} codesigning material does not contain a `.watchkitapp` profile, so the embedded watch app '
-            'would be UNSIGNED — the host app is not re-signed over it, so it ships unsigned and is silently '
+            'would be UNSIGNED. The host app is not re-signed over it, so it ships unsigned and is silently '
             'rejected when installing on a watch.\n'
-            'Fix: fetch the latest codesigning material so the watchkitapp profile is present — drop '
+            'Fix: fetch the latest codesigning material so the watchkitapp profile is present. Drop '
             '--gitCodesigningUseCurrent (it skips the fetch), or run '
-            '`git -C build-input/configuration-repository-workdir/encrypted pull` — or create/register the {ct} '
+            '`git -C build-input/configuration-repository-workdir/encrypted pull`, or create/register the {ct} '
             'watchkitapp provisioning profile, or pass an explicit --watchProvisioningProfile.'.format(
                 ct=arguments.gitCodesigningType, p=resolved_watch_profile
             )

@@ -1,0 +1,51 @@
+{
+  "$schema": "manifest.schema.json",
+  "version": 1,
+  "canvas": 1024,
+  "badges": [
+    {
+      "id": "developer",
+      "description": "WinterGram developer",
+      "peers": { "users": [885166226, 5665997196], "channels": [] },
+      "priority": 100,
+      "layers": [
+        {
+          "name": "backplate",
+          "source": "developer/backplate.png",
+          "x": 0, "y": 0, "width": 1024, "height": 1024,
+          "tint": "theme",
+          "animation": { "type": "rotate", "duration": 8.0, "direction": "cw", "loop": true }
+        },
+        {
+          "name": "icon",
+          "source": "developer/icon.png",
+          "x": 134, "y": 134, "width": 756, "height": 756,
+          "tint": "#FFFFFF",
+          "animation": { "type": "none" }
+        }
+      ]
+    },
+    {
+      "id": "official",
+      "description": "Official WinterGram channel",
+      "peers": { "users": [], "channels": [3943351959, 4316373875, 3999337820, 4348385636] },
+      "priority": 50,
+      "layers": [
+        {
+          "name": "backplate",
+          "source": "official/backplate.png",
+          "x": 0, "y": 0, "width": 1024, "height": 1024,
+          "tint": "theme",
+          "animation": { "type": "rotate", "duration": 8.0, "direction": "cw", "loop": true }
+        },
+        {
+          "name": "icon",
+          "source": "official/icon.png",
+          "x": 134, "y": 134, "width": 756, "height": 756,
+          "tint": "#FFFFFF",
+          "animation": { "type": "none" }
+        }
+      ]
+    }
+  ]
+}

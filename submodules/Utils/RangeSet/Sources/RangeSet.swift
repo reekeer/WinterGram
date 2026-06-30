@@ -59,7 +59,7 @@ public struct RangeSet<Bound: Comparable> {
   /// The ranges stored by a range set are never empty, never overlap,
   /// and are always stored in ascending order when comparing their lower
   /// or upper bounds. In addition to not overlapping, no two consecutive
-  /// ranges share an upper and lower bound — `[0..<5, 5..<10]` is ill-formed,
+  /// ranges share an upper and lower bound. `[0..<5, 5..<10]` is ill-formed,
   /// and would instead be represented as `[0..<10]`.
   internal func _checkInvariants() {
     for (a, b) in zip(ranges, ranges.dropFirst()) {

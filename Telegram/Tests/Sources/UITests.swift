@@ -34,12 +34,12 @@ class UITests: XCTestCase {
         deleteTestAccount(phone: "9996625296")
         app.launch()
 
-        // Welcome screen — tap Start Messaging
+        // Start messaging.
         let startButton = app.buttons["Auth.Welcome.StartButton"]
         XCTAssert(startButton.waitForExistence(timeout: 5.0))
         startButton.tap()
 
-        // Phone entry screen — enter test phone number
+        // Enter the test phone number.
         let countryCodeField = app.textFields["Auth.PhoneEntry.CountryCodeField"]
         XCTAssert(countryCodeField.waitForExistence(timeout: 10.0))
         countryCodeField.tap()
@@ -57,12 +57,12 @@ class UITests: XCTestCase {
         XCTAssert(continueButton.isEnabled)
         continueButton.tap()
 
-        // Confirmation dialog — tap Continue
+        // Confirm.
         let confirmButton = app.buttons["Auth.PhoneConfirm.ContinueButton"]
         XCTAssert(confirmButton.waitForExistence(timeout: 5.0))
         confirmButton.tap()
 
-        // Code entry screen — enter verification code
+        // Enter the verification code.
         let codeEntryTitle = app.staticTexts["Auth.CodeEntry.Title"]
         XCTAssert(codeEntryTitle.waitForExistence(timeout: 15.0))
 
@@ -70,7 +70,7 @@ class UITests: XCTestCase {
         XCTAssert(codeField.waitForExistence(timeout: 3.0))
         codeField.typeText("22222")
 
-        // Set name screen — enter name and submit
+        // Set the name.
         let firstNameField = app.textFields["Auth.SetName.FirstNameField"]
         XCTAssert(firstNameField.waitForExistence(timeout: 15.0))
         firstNameField.tap()

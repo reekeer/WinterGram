@@ -140,9 +140,7 @@ final class ChatSendMessageRichTextPreview: ChatSendMessageContextScreenRichText
             fitToWidth: true
         )
         self.pageView.update(layout: layout, theme: pageTheme, animation: .None)
-        // The parent (MessageItemView) owns and sets `pageView`'s frame; `update` only
-        // rebuilds content and reports the size. Rendering is static (.None) — the screen
-        // drives the size/crossfade transition.
+        // The parent owns the page frame and transition.
 
         self.cachedBoundingWidth = boundingWidth
         self.cachedThemeIdentity = themeIdentity

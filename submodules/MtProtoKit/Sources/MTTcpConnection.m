@@ -460,7 +460,7 @@ static bool executeGenerationCodeRecursive(NSString *code, HelloParseState *stat
                 break;
             }
             case HelloGenerationCommandEndAlternative: {
-                // signals end of current alternative — return to caller
+                // End the current alternative.
                 return true;
             }
             case HelloGenerationCommandBeginAlternative:

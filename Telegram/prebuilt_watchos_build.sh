@@ -2,7 +2,7 @@
 # Worker for the apple_prebuilt_watchos_application Bazel rule.
 #
 # Builds the tgwatch watch app via xcodebuild (device, Release, UNSIGNED), then
-# — if a provisioning profile is supplied — codesigns the app and its nested
+# If a provisioning profile is supplied, codesigns the app and its nested
 # frameworks with the watchkitapp provisioning profile and a matching identity,
 # and finally zips the .app into the rule's output archive.
 #
@@ -45,7 +45,7 @@ DD="$(mktemp -d)"
 trap 'rm -rf "$DD"' EXIT
 
 # Build from a writable copy so xcodebuild/SwiftPM never write into the (possibly
-# in-repo, read-only) source tree — e.g. SwiftPM's Package.resolved or the workspace.
+# in-repo, read-only) source tree, such as SwiftPM's Package.resolved or the workspace.
 # The tree is small (~12M); a plain cp on each (uncached) build is acceptable.
 WORKSRC="$DD/src"
 mkdir -p "$WORKSRC"
@@ -84,7 +84,7 @@ fi
 # Sign the watch app whenever a provisioning profile is available. When no explicit
 # identity is supplied, derive it from the certificate embedded in that profile, so
 # the watch app is signed with the same distribution/development identity as the host
-# app (resolved from the shared codesigning material) — required for App Store, where
+# app (resolved from the shared codesigning material), as required for App Store, where
 # every nested bundle must carry the Apple submission certificate. Without a profile
 # the app is left unsigned (the host does not re-sign it).
 if [ -n "$PROFILE" ]; then

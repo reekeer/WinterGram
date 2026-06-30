@@ -11,6 +11,9 @@ import TelegramCore
 import ComponentFlow
 import BundleIconComponent
 import GlassBarButtonComponent
+import libphonenumber
+
+private let countryPhoneNumberUtil = NBPhoneNumberUtil()
 
 private func loadCountryCodes() -> [Country] {
     guard let filePath = getAppBundle().path(forResource: "PhoneCountries", ofType: "txt") else {
@@ -56,10 +59,38 @@ private func loadCountryCodes() -> [Country] {
         
         let countryName = locale.localizedString(forIdentifier: countryId) ?? ""
         if let _ = Int(countryCode) {
-            let code = Country.CountryCode(code: countryCode, prefixes: [], patterns: !pattern.isEmpty ? [pattern] : [])
+            let prefixes: [String]
+            if countryCode == "7" {
+                switch countryId {
+                case "RU":
+                    prefixes = ["3", "4", "8", "9"]
+                case "KZ":
+                    prefixes = ["6", "7"]
+                default:
+                    prefixes = []
+                }
+            } else if countryCode == "599" {
+                switch countryId {
+                case "BQ":
+                    prefixes = ["3", "4", "7"]
+                case "CW":
+                    prefixes = ["1", "6", "9"]
+                default:
+                    prefixes = []
+                }
+            } else {
+                prefixes = []
+            }
+            let code = Country.CountryCode(code: countryCode, prefixes: prefixes, patterns: !pattern.isEmpty ? [pattern] : [])
             let country = Country(id: countryId, name: countryName, localizedName: nil, countryCodes: [code], hidden: false)
             result.append(country)
-            countriesByPrefix["\(code.code)"] = (country, code)
+            if !prefixes.isEmpty {
+                for prefix in prefixes {
+                    countriesByPrefix["\(code.code)\(prefix)"] = (country, code)
+                }
+            } else if countriesByPrefix[code.code] == nil {
+                countriesByPrefix[code.code] = (country, code)
+            }
         }
         
         if let maybeNameRange = maybeNameRange {
@@ -74,28 +105,36 @@ private func loadCountryCodes() -> [Country] {
     return result
 }
 
-private var countryCodes: [Country] = loadCountryCodes()
 private var countryCodesByPrefix: [String: (Country, Country.CountryCode)] = [:]
+private var countryCodes: [Country] = loadCountryCodes()
+
+private func updateCountryCodes(_ countries: [Country]) {
+    guard !countries.isEmpty else {
+        return
+    }
+
+    countryCodes = countries
+
+    var updatedCodesByPrefix: [String: (Country, Country.CountryCode)] = [:]
+    for country in countries {
+        for code in country.countryCodes {
+            if !code.prefixes.isEmpty {
+                for prefix in code.prefixes {
+                    updatedCodesByPrefix["\(code.code)\(prefix)"] = (country, code)
+                }
+            } else {
+                updatedCodesByPrefix[code.code] = (country, code)
+            }
+        }
+    }
+    countryCodesByPrefix = updatedCodesByPrefix
+}
 
 public func loadServerCountryCodes(accountManager: AccountManager<TelegramAccountManagerTypes>, engine: TelegramEngineUnauthorized, completion: @escaping () -> Void) {
     let _ = (engine.localization.getCountriesList(accountManager: accountManager, langCode: nil)
     |> deliverOnMainQueue).start(next: { countries in
-        countryCodes = countries
-        
-        var countriesByPrefix: [String: (Country, Country.CountryCode)] = [:]
-        for country in countries {
-            for code in country.countryCodes {
-                if !code.prefixes.isEmpty {
-                    for prefix in code.prefixes {
-                        countriesByPrefix["\(code.code)\(prefix)"] = (country, code)
-                    }
-                } else {
-                    countriesByPrefix[code.code] = (country, code)
-                }
-            }
-        }
-        countryCodesByPrefix = countriesByPrefix
-                
+        updateCountryCodes(countries)
+
         Queue.mainQueue().async {
             completion()
         }
@@ -105,21 +144,8 @@ public func loadServerCountryCodes(accountManager: AccountManager<TelegramAccoun
 public func loadServerCountryCodes(accountManager: AccountManager<TelegramAccountManagerTypes>, engine: TelegramEngine, completion: @escaping () -> Void) {
     let _ = (engine.localization.getCountriesList(accountManager: accountManager, langCode: nil)
     |> deliverOnMainQueue).start(next: { countries in
-        countryCodes = countries
+        updateCountryCodes(countries)
 
-        var countriesByPrefix: [String: (Country, Country.CountryCode)] = [:]
-        for country in countries {
-            for code in country.countryCodes {
-                if !code.prefixes.isEmpty {
-                    for prefix in code.prefixes {
-                        countriesByPrefix["\(code.code)\(prefix)"] = (country, code)
-                    }
-                } else {
-                    countriesByPrefix[code.code] = (country, code)
-                }
-            }
-        }
-        countryCodesByPrefix = countriesByPrefix
         Queue.mainQueue().async {
             completion()
         }
@@ -204,6 +230,9 @@ public final class AuthorizationSequenceCountrySelectionController: ViewControll
     }
     
     public static func setupCountryCodes(countries: [Country], codesByPrefix: [String: (Country, Country.CountryCode)]) {
+        guard !countries.isEmpty else {
+            return
+        }
         countryCodes = countries
         countryCodesByPrefix = codesByPrefix
     }
@@ -229,6 +258,7 @@ public final class AuthorizationSequenceCountrySelectionController: ViewControll
     public static func lookupCountryIdByNumber(_ number: String, preferredCountries: [String: String]) -> (Country, Country.CountryCode)? {
         let number = removePlus(number)
         var results: [(Country, Country.CountryCode)]? = nil
+        var matchedPrefixLength = 0
         if number.count == 1, let preferredCountryId = preferredCountries[number], let country = lookupCountryById(preferredCountryId), let code = country.countryCodes.first {
             return (country, code)
         }
@@ -244,10 +274,19 @@ public final class AuthorizationSequenceCountrySelectionController: ViewControll
                     }
                 } else {
                     results = [country]
+                    matchedPrefixLength = prefix.count
                 }
             }
         }
         if let results = results {
+            if let firstResult = results.first,
+               matchedPrefixLength <= firstResult.1.code.count,
+               let parsedNumber = try? countryPhoneNumberUtil.parse("+\(number)", defaultRegion: nil),
+               let regionCode = countryPhoneNumberUtil.getRegionCode(for: parsedNumber),
+               let matchedCountry = countryCodes.first(where: { $0.id == regionCode }),
+               let matchedCode = matchedCountry.countryCodes.first(where: { number.hasPrefix($0.code) }) {
+                return (matchedCountry, matchedCode)
+            }
             if !preferredCountries.isEmpty, let (_, code) = results.first {
                 if let preferredCountry = preferredCountries[code.code] {
                     for (country, code) in results {

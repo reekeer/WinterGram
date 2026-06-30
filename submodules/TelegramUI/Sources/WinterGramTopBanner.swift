@@ -3,7 +3,7 @@ import Display
 import TelegramUIPreferences
 
 // WinterGram: a persistent branding banner shown at the very top, centred in the Dynamic Island /
-// notch band. It is a purely decorative overlay added to the key window — `isUserInteractionEnabled`
+// notch band. It is a decorative overlay added to the key window. `isUserInteractionEnabled`
 // is false so it never intercepts touches. For now there is a single banner type (the bundled
 // `WntGramBanner` image); `WinterGramTopBannerStyle.off` hides it, any other value shows it.
 public final class WinterGramTopBannerView: UIView {

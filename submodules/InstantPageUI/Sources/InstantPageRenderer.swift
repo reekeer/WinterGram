@@ -21,7 +21,7 @@ import ShimmeringMask
 
 /// Stable identity for an `InstantPageV2LaidOutItem` across `update()` calls. The renderer
 /// uses this to harvest existing item views and reuse them when the new layout still has
-/// an item with the same id — preventing the media wrappers from torching their fetch
+/// an item with the same id, preserving media fetch
 /// signals + image content on every chat-bubble re-apply.
 ///
 /// Media items use their `media.index` (already unique within a page and used as the
@@ -42,7 +42,7 @@ public enum InstantPageV2ItemKind: Hashable {
 // MARK: - Render context
 
 /// Bundle of render-time dependencies required to display real media inside an InstantPage V2
-/// view. Tied to an `InstantPageV2View` for the view's lifetime — if any field would change
+/// view. Tied to an `InstantPageV2View` for the view's lifetime. If any field would change
 /// (typically because the bubble was recycled with a different webpage), the caller must
 /// rebuild the V2View with a fresh render context.
 ///
@@ -93,7 +93,7 @@ public final class InstantPageV2RenderContext {
     /// streaming bubble to reuse one V2View across `stableVersion` bumps instead of rebuilding.
     /// Only `webpage` changes across chunks; the `imageReference`/`fileReference` closures keep
     /// their construction-time `MessageReference` snapshot, which is acceptable because the message
-    /// id is stable across chunks (media resolves by id) and streamed AI content carries no media.
+    /// id is stable across chunks and streamed content carries no media.
     public func updateContent(webpage: TelegramMediaWebpage) {
         self.webpage = webpage
     }
@@ -152,7 +152,7 @@ public final class InstantPageV2View: UIView {
     private var emojiEnableLooping: Bool = true
 
     /// Scroll-visibility rect in this view's coordinate space; gates emoji animation looping.
-    /// `nil` means "not visible" → emoji don't animate. The root rect is set by the bubble and
+    /// `nil` means not visible, so emoji do not animate. The root rect is set by the bubble and
     /// propagated down the nested tree (details/table) by `propagateVisibilityRect`.
     public var visibilityRect: CGRect? {
         didSet {
@@ -179,7 +179,7 @@ public final class InstantPageV2View: UIView {
 
     /// Walks the `rootMediaRegistryHost` chain transitively until it finds a self-referencing
     /// host (the true root). Necessary because nested details blocks can leave an inner body's
-    /// `rootMediaRegistryHost` pointing at an intermediate body rather than the outer root —
+    /// `rootMediaRegistryHost` pointing at an intermediate body rather than the outer root.
     /// `propagateRegistryHost(to:)` only walks one hop, so the chain must be followed at lookup.
     var trueRegistryRoot: InstantPageV2View {
         var host: InstantPageV2View = self
@@ -251,7 +251,7 @@ public final class InstantPageV2View: UIView {
                 let newFrame = InstantPageV2View.actualFrame(forItem: item)   // parent positions child
                 if animation.isAnimated && reusedView.frame != newFrame {
                     // A collapsing details view keeps its body alive; remove it once this
-                    // frame-shrink (the clip that hides it) finishes — see finalizePendingCollapse().
+                    // frame shrink finishes. See finalizePendingCollapse().
                     let detailsView = reusedView as? InstantPageV2DetailsView
                     animation.animator.updateFrame(layer: reusedView.layer, frame: newFrame, completion: { [weak detailsView] _ in
                         detailsView?.finalizePendingCollapse()
@@ -316,7 +316,7 @@ public final class InstantPageV2View: UIView {
 
         for view in self.itemViews {
             // Top-level `.text` items host their emoji directly. The thinking block hosts emoji on
-            // its shimmer-wrapped inner text view, which the page never sees as a top-level item —
+            // its shimmer-wrapped inner text view, which is not a top-level item,
             // so without this it is skipped and the emoji never get layers (invisible). Nested V2
             // sub-layouts (details bodies, table cells) instead run their own updateInlineEmoji.
             let textView: InstantPageV2TextView
@@ -574,7 +574,7 @@ public final class InstantPageV2View: UIView {
 
     // Pushes this view's `visibilityRect` down into every nested V2 view (details body, table
     // title + cells), converted into each child's coordinate space. Each child's `visibilityRect`
-    // didSet re-runs `updateEmojiVisibility`, which propagates one level further — so a single
+    // didSet re-runs `updateEmojiVisibility`, which propagates one level further, so a single
     // root assignment fans out across the whole tree.
     private func propagateVisibilityRect() {
         for view in self.itemViews {
@@ -829,8 +829,7 @@ public final class InstantPageV2View: UIView {
     ///
     /// For most item types this is `item.frame`. `InstantPageV2TextView` widens its backing store
     /// by `v2TextViewClippingInset` on every side to accommodate glyph overhang and underline
-    /// rendering past the text's logical `maxY` — the same inset its `init` applies when
-    /// constructing the view. The reuse path must apply the same expansion so that re-layout
+    /// rendering past the text's logical `maxY`. The reuse path applies the same expansion so re-layout
     /// (theme change, bubble resize, etc.) does not clip italic glyphs or underlines.
     ///
     /// Keep this helper aligned with each view class's init-time frame computation.
@@ -924,7 +923,7 @@ final class InstantPageV2TextView: UIView, InstantPageItemView {
         }
     }
 
-    // Reveal mask state — populated in Task 5.
+    // Reveal mask state.
     private var maxCharacterDrawCount: Int?
     private var previousMaxCharacterDrawCount: Int = 0
     private var revealMaskLayer: SimpleLayer?
@@ -962,7 +961,7 @@ final class InstantPageV2TextView: UIView, InstantPageItemView {
         self.item = item
         // Lay every container out from the item's own (clipping-inset-expanded) frame rather than
         // self.bounds, so the single path is correct regardless of when the parent assigns our
-        // frame — and so a reused text view that changed size (e.g. AI streaming) re-frames its
+        // frame. A reused text view that changes size also updates its
         // renderContainer/renderView too, which the old update path skipped.
         let containerBounds = CGRect(origin: .zero, size: item.frame.insetBy(dx: -v2TextViewClippingInset, dy: -v2TextViewClippingInset).size)
         self.renderContainer.frame = containerBounds
@@ -1165,7 +1164,7 @@ final class InstantPageV2TextView: UIView, InstantPageItemView {
 
         let currentLineInfos = self.computeRevealedLines(characterLimit: effectiveCharacterDrawCount)
 
-        // Snippet spawn pass — animate newly-revealed characters.
+        // Animate newly revealed characters.
         if self.previousMaxCharacterDrawCount < effectiveCharacterDrawCount,
            let contents = self.renderView.layer.contents,
            animateNewSegments {
@@ -1235,9 +1234,9 @@ final class InstantPageV2TextView: UIView, InstantPageItemView {
             }
         }
 
-        // Mask rebuild — when snippets are in flight, clamp to the lowest animating one
+        // Clamp the mask to the lowest animating snippet
         // (so the mask never exposes a char a snippet is still flying for). With no animations
-        // in flight, snap directly to the current target — `previousMaxCharacterDrawCount`
+        // in flight, snap directly to the current target. `previousMaxCharacterDrawCount`
         // would lag by one call (it's updated at the end of this function) and is 0 on a fresh
         // view, which would hide every char until the next tick.
         let maskCharacterLimit: Int
@@ -1257,7 +1256,7 @@ final class InstantPageV2TextView: UIView, InstantPageItemView {
         // Per-glyph rect captures descenders, italic overhang, accents exactly. Per
         // line we accumulate the union of revealed glyphs into one mask rect (one
         // CALayer sublayer per line), and consecutive fully-revealed lines collapse
-        // further into a single rect — so a fully-revealed prefix is always one
+        // further into a single rect, so a fully revealed prefix is always one
         // sublayer regardless of line count.
         //
         // Lines without per-character data (computeRevealCharacterRects == false on
@@ -1298,7 +1297,7 @@ final class InstantPageV2TextView: UIView, InstantPageItemView {
                 lineUnion = union
                 remainingChars -= characterRects.count
             } else {
-                // No per-character data — expose the whole line.
+                // Expose the whole line without character data.
                 lineUnion = line.range.length > 0 ? renderLocalLineFrame : nil
                 isFullLine = remainingChars >= line.range.length
                 remainingChars -= line.range.length
@@ -1705,10 +1704,10 @@ final class InstantPageV2DetailsView: UIView, InstantPageItemView {
     var bodyView: InstantPageV2View?
     private let titleHitView: UIView
 
-    // The expanded chevron is the collapsed one rotated 180° (down → up).
+    // Rotate the collapsed chevron for the expanded state.
     private static let expandedChevronTransform = CATransform3DMakeRotation(CGFloat.pi, 0.0, 0.0, 1.0)
     // On an animated collapse the body is kept until the toggle animation finishes (so the
-    // shrinking clip can hide it), then removed in finalizePendingCollapse() — which the parent
+    // shrinking clip can hide it), then removed in finalizePendingCollapse(). The parent
     // (InstantPageV2View.update) calls from the completion of the frame-shrink (clip) animation.
     private var bodyPendingRemoval = false
 
@@ -1744,7 +1743,7 @@ final class InstantPageV2DetailsView: UIView, InstantPageItemView {
 
         super.init(frame: item.frame)
         self.backgroundColor = .clear   // structural
-        self.clipsToBounds = true       // structural — the parent's frame-height animation clips the body
+        self.clipsToBounds = true
 
         self.addSubview(self.titleTextView)
         self.addSubview(self.chevronView)
@@ -1755,7 +1754,7 @@ final class InstantPageV2DetailsView: UIView, InstantPageItemView {
         self.titleHitView.addGestureRecognizer(tap)
 
         // All content (title, chevron tint/position, separator, titleHit frame, body) flows through
-        // update — its expanded branch lazily creates the body, so init no longer builds it itself.
+        // update. Its expanded branch creates the body lazily.
         self.update(item: item, theme: theme, renderContext: renderContext, animation: .None)
     }
 
@@ -1786,7 +1785,7 @@ final class InstantPageV2DetailsView: UIView, InstantPageItemView {
         self.titleHitView.frame = item.titleFrame
 
         // Body lifecycle. The reveal/hide of the body is produced by the parent animating this
-        // view's own frame height (clipsToBounds = true), not by the body itself — see
+        // view's own frame height (clipsToBounds = true), not by the body itself. See
         // InstantPageV2View.update. The body's internal layout is forwarded `animation` so a
         // *nested* details block inside the body can also animate its own toggle.
         let blockHeight: CGFloat
@@ -1842,7 +1841,7 @@ final class InstantPageV2DetailsView: UIView, InstantPageItemView {
             height: UIScreenPixel
         ), completion: nil)
 
-        // Chevron rotation. The body teardown on collapse is NOT tied to this completion — see
+        // Body teardown is not tied to chevron rotation. See
         // finalizePendingCollapse(), which the parent calls from the frame-shrink (clip) animation.
         let targetTransform = item.isExpanded ? InstantPageV2DetailsView.expandedChevronTransform : CATransform3DIdentity
         animation.animator.updateTransform(layer: self.chevronView.layer, transform: targetTransform, completion: nil)
@@ -1851,7 +1850,7 @@ final class InstantPageV2DetailsView: UIView, InstantPageItemView {
     /// Removes the body kept alive across an animated collapse. The parent (InstantPageV2View.update)
     /// calls this from the completion of the frame-shrink animation that clips the body away, so the
     /// body is torn down exactly when it finishes being hidden. The guard makes a re-expand that
-    /// interrupts the collapse safe — the re-expand clears `bodyPendingRemoval` first.
+    /// interrupts the collapse safely because re-expanding clears `bodyPendingRemoval`.
     func finalizePendingCollapse() {
         if !self.item.isExpanded, self.bodyPendingRemoval {
             self.bodyView?.removeFromSuperview()
@@ -1938,8 +1937,8 @@ final class InstantPageV2ThinkingView: UIView, InstantPageItemView {
     /// Parent positions self at the item frame (the bare line box). The shimmer and its gradient
     /// mask are sized to the text view's clipping-inset-EXPANDED frame and shifted to
     /// `(-inset, -inset)`, so the mask doesn't crop the glyph overhang the inset reserves (tall
-    /// ascenders, descenders, the last line's underline) — the symptom of sizing the mask to the
-    /// bare line box. The inner text view fills the shimmer; its `+inset` render translate lands the
+    /// ascenders, descenders, and the last line's underline). The inner text view fills the shimmer;
+    /// its `+inset` render translate lands the
     /// glyphs back at self's origin, so the text position is unchanged. Mirrors how a `.text` view's
     /// frame is inset-expanded (`actualFrame` / `InstantPageV2TextView.init`).
     private func layoutContents() {
@@ -2026,7 +2025,7 @@ final class InstantPageV2TableView: UIView, InstantPageItemView {
         // every frame / colour / sub-layout below. Insertion order matches the original interleaved
         // build so the layer/subview z-order is unchanged (stripes at the bottom, then the title and
         // cell sub-views, then the inner grid lines). Cell-count changes on later reuse are not
-        // reconciled here (pre-existing limitation) — update's index-guarded loops refresh in place.
+        // reconciled here; update's index-guarded loops refresh in place.
         if item.titleSubLayout != nil {
             let v = InstantPageV2View(renderContext: renderContext)
             self.contentView.addSubview(v)
@@ -2090,7 +2089,7 @@ final class InstantPageV2TableView: UIView, InstantPageItemView {
             }
         }
 
-        // Stripe layers (cell backgrounds) — update color + frame + corner rounding in original order.
+        // Update cell background layers in their original order.
         let effectiveBorderWidth = item.bordered ? v2TableBorderWidth : 0.0
         let gridHeight = item.contentSize.height - gridOffsetY
         var stripeIndex = 0
@@ -2111,7 +2110,7 @@ final class InstantPageV2TableView: UIView, InstantPageItemView {
             }
         }
 
-        // Inner line layers — refresh colour AND frame in place. (`lineLayers` holds only inner grid
+        // Refresh inner grid line colors and frames.
         // lines; the outer border is the contentView layer's own rounded border, refreshed below.)
         // Frames are set here (not in init) so reuse with a different grid re-positions the lines.
         let lineRects = item.horizontalLines + item.verticalLines
@@ -2122,7 +2121,7 @@ final class InstantPageV2TableView: UIView, InstantPageItemView {
             }
         }
 
-        // Rounded outer border — refresh radius/color/width (theme or `bordered` flag may change).
+        // Refresh the rounded outer border.
         self.contentView.layer.cornerRadius = v2TableCornerRadius
         self.contentView.layer.borderColor = item.borderColor.cgColor
         self.contentView.layer.borderWidth = item.bordered ? v2TableBorderWidth : 0.0
@@ -2168,7 +2167,7 @@ public extension InstantPageV2View {
     }
 
     /// The frame (pageView-space) of the anchor `name` in the *currently laid-out* layout.
-    /// Returns nil if the anchor isn't present — e.g. it's inside a collapsed `<details>`
+    /// Returns nil if the anchor is missing or inside collapsed `<details>`
     /// (whose inner blocks aren't laid out) or doesn't exist. Mirrors `findTextItem`.
     func anchorFrame(name: String) -> CGRect? {
         guard let layout = self.currentLayout else { return nil }
@@ -2178,7 +2177,7 @@ public extension InstantPageV2View {
     /// Given a details-sibling-ordinal path (from `instantPageAnchorPath`), walk the live layout
     /// and return the `currentExpandedDetails` index of the FIRST not-yet-expanded `<details>` on
     /// the path. Returns nil if every details on the path is already expanded, or the path doesn't
-    /// match the live layout. Reads indices from the laid-out items — never reproduces them.
+    /// match the live layout. Reads indices from the laid-out items.
     func firstCollapsedDetails(forOrdinalPath path: [Int]) -> Int? {
         guard let layout = self.currentLayout else { return nil }
         var currentItems = layout.items
@@ -2403,7 +2402,7 @@ private func collectSelectableTextItems(
 /// For block formulas wider than the bubble's available width, the layout sets
 /// `isScrollable = true`; this view then wraps the image in a horizontal `UIScrollView`
 /// matching V1's `InstantPageScrollableNode` (no bounce on non-overflowing content,
-/// scroll indicator hidden — appropriate for content embedded inside a chat bubble).
+/// scroll indicator hidden, for content embedded inside a chat bubble).
 final class InstantPageV2FormulaView: UIView, InstantPageItemView {
     private(set) var item: InstantPageV2FormulaItem
     var itemFrame: CGRect { return self.item.frame }

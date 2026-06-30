@@ -62,6 +62,9 @@
 
 @property (nonatomic) CGRect defaultFrame;
 
+// Brand icon overlaid on the first intro page animation.
+@property (nonatomic, strong) UIImage *firstPageIcon;
+
 - (instancetype)initWithBackgroundColor:(UIColor *)backgroundColor primaryColor:(UIColor *)primaryColor buttonColor:(UIColor *)buttonColor accentColor:(UIColor *)accentColor regularDotColor:(UIColor *)regularDotColor highlightedDotColor:(UIColor *)highlightedDotColor suggestedLocalizationSignal:(SSignal *)suggestedLocalizationSignal;
 
 @property (nonatomic, copy) void (^startMessaging)(void);

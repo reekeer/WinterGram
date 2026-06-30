@@ -9,17 +9,14 @@ import TelegramPresentationData
 import GalleryUI
 import UniversalMediaPlayer
 
-// Mutable weak box: lets a wrapper hand its `openMedia` closure a back-reference to itself,
-// filled in after `super.init` (when `self` becomes usable). SwiftSignalKit's `Weak<T>` requires
-// a non-optional value at init time, so it can't be used here.
+// Mutable weak reference filled after `super.init`.
 private final class WrapperRef {
     weak var view: UIView?
 }
 
 // MARK: - Shared media node factory
 
-// Hosts a V1 `InstantPageImageNode` inside a V2 UIView wrapper. The caller sizes its own
-// frame from `item.frame` and adds the returned node's view as a subview.
+// Creates an image node for a V2 media wrapper.
 func makeMediaWrapper(
     frame: CGRect,
     media: InstantPageMedia,
@@ -52,7 +49,7 @@ func makeMediaWrapper(
     return imageNode
 }
 
-// Walks up the superview chain from `start` to find the nearest enclosing `InstantPageV2View`.
+// Find the nearest enclosing V2 view.
 private func findEnclosingV2View(from start: UIView?) -> InstantPageV2View? {
     var view: UIView? = start
     while view != nil {
@@ -64,18 +61,13 @@ private func findEnclosingV2View(from start: UIView?) -> InstantPageV2View? {
     return nil
 }
 
-// Registers `wrapper` in the root V2View's `mediaRegistry` under `mediaIndex`. The root is
-// reached by walking up the superview chain to the nearest `InstantPageV2View`, then walking
-// its `rootMediaRegistryHost` chain transitively (nested details blocks can leave an inner
-// body's host pointing at an intermediate body — see `trueRegistryRoot`). No-op if the wrapper
-// isn't yet attached to a V2View ancestor.
+// Register media at the root V2 view.
 func registerInRootRegistry(wrapper: UIView, mediaIndex: Int) {
     guard let v2 = findEnclosingV2View(from: wrapper.superview) else { return }
     v2.trueRegistryRoot.mediaRegistry[mediaIndex] = Weak(wrapper)
 }
 
-// Routes a tap on `tapped` through `openInstantPageMedia`, sourcing sibling medias from the
-// root V2View's `currentLayout`. No-op if the wrapper isn't currently in a V2View tree.
+// Open media with siblings from the root layout.
 func handleOpenMediaTap(
     tapped: InstantPageMedia,
     wrapper: UIView,
@@ -446,9 +438,7 @@ final class InstantPageV2MediaAudioView: UIView, InstantPageItemView {
         let fetchMedia = item.media
         self.audioNode.fetch = {
             guard case let .file(file) = fetchMedia.media, let message = fetchMessage, let messageId = message.id else { return }
-            // Route through the fetch manager (not freeMediaFileInteractiveFetched) so the
-            // messageMediaFileStatus signal — which keys progress off the fetch manager's
-            // `hasEntry` — surfaces .Fetching, letting the overlay show the animated ring.
+            // Use the fetch manager so status reports `.Fetching`.
             let _ = messageMediaFileInteractiveFetched(fetchManager: fetchContext.fetchManager, messageId: messageId, messageReference: message, file: file, userInitiated: true, priority: .userInitiated).startStandalone()
         }
 

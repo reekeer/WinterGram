@@ -28,7 +28,7 @@ extension InstantPageV2RevealCostMap {
 
 // Reveal cost is in width units (points along the reading direction). The unit is uniform
 // across all item kinds, so the streaming reveal pace ("points per second") is visually
-// consistent — wide tables and media take proportionally longer than narrow inline text.
+// consistent. Wide tables and media take longer than narrow inline text.
 //
 // For text items, the cost is the sum of glyph ink widths across all lines (the total ink
 // extent in reading direction). For non-text items, the cost is `item.frame.width`. Zero-width
@@ -112,7 +112,7 @@ public extension InstantPageV2RevealCostMap {
     /// * `details` / `codeBlock`: the whole container appears as soon as revealedCount > entry.start
     ///   (background and chrome pop in atomically, then inner text reveals char-by-char).
     ///
-    /// Used by the rich-data bubble to size itself to the revealed prefix during AI streaming,
+    /// Used by the rich-data bubble to size itself to the revealed prefix during streaming,
     /// mirroring TextBubble's `clippedGlyphCountLayout = textLayout.layoutForCharacterCount(...)`.
     func revealedContentSize(revealedCount: Int, layout: InstantPageV2Layout) -> CGSize {
         let bounds = computeRevealedBounds(items: layout.items, entries: self.topLevelEntries, revealedCount: revealedCount)
@@ -121,7 +121,7 @@ public extension InstantPageV2RevealCostMap {
         }
         // The full layout reserves a closing spacing after the last top-level block (see
         // `closingSpacing` in layoutBlockSequence). Mirror that so a partially-revealed
-        // bubble has the same bottom padding as a fully-revealed one — otherwise the last
+        // bubble has the same bottom padding as a fully revealed one. Otherwise the last
         // revealed line sits flush against the bubble's bottom edge.
         let lastItemMaxY = layout.items.map { $0.frame.maxY }.max() ?? 0.0
         let closingPad = max(0.0, layout.contentSize.height - lastItemMaxY)
@@ -130,7 +130,7 @@ public extension InstantPageV2RevealCostMap {
 
     /// Returns the maxY of revealed items in `layout` coords (no closing pad). Use this to
     /// size the InstantPageV2View itself so its content never overflows past the revealed
-    /// extent — the bubble's closing pad sits in containerNode space *outside* the pageView,
+    /// extent. The bubble's closing pad sits in containerNode space outside the pageView,
     /// not inside it (where unrevealed items would otherwise draw).
     func revealedItemsMaxY(revealedCount: Int, layout: InstantPageV2Layout) -> CGFloat {
         let bounds = computeRevealedBounds(items: layout.items, entries: self.topLevelEntries, revealedCount: revealedCount)
@@ -308,7 +308,7 @@ private func computeEntries(items: [InstantPageV2LaidOutItem], cursor: inout Int
                     // Each cell consumes at least its frame.width worth of cursor advance,
                     // even if its inner text ink width is smaller (or it has no subLayout
                     // at all). Without this floor, narrow- or empty-cell tables ran through
-                    // the cursor much faster than their visual width warrants — a 3-column
+                    // the cursor much faster than their visual width warrants. A 3-column
                     // table of "1"/"2"/"3" costs ~30pt while occupying ~200pt visually.
                     // Text inside a cell still char-reveals against its own ink widths; the
                     // "extra" cost (cell width − inner ink) is filler time during which the
@@ -330,7 +330,7 @@ private func computeEntries(items: [InstantPageV2LaidOutItem], cursor: inout Int
             }
             entries.append(.table(start: start, end: cursor, rows: rows, title: titleMap))
         case .thinking:
-            // Zero cost: do NOT advance the cursor. This is the linchpin — answer-content cursor
+            // Do not advance the cursor for thinking blocks.
             // positions are identical whether or not thinking blocks are present, so adding/
             // removing a thinking block never jumps the answer's reveal position.
             entries.append(.thinking(start: cursor))
@@ -432,7 +432,7 @@ private func applyRevealEntry(view: InstantPageItemView, entry: InstantPageV2Rev
         let _ = start
     case let .thinking(start):
         // Whole-block 0.12s alpha fade-in at the index position; inner text is drawn fully
-        // (never char-reveal-masked) — the shimmer is the only ongoing animation.
+        // (never character-masked). The shimmer is the only ongoing animation.
         let visible = revealedCount >= start
         applyVisibility(view: view, visible: visible, animated: animated)
     }
@@ -520,7 +520,7 @@ private func applyTableReveal(tableView: InstantPageV2TableView, start: Int, end
         let rowMaxY = cellsInRow.map { $0.frame.maxY }.max() ?? 0.0
         maskHeight = gridOffsetY + rowMaxY
     } else {
-        // No rows revealed yet — but the title (if any) is still visible above the grid.
+        // Keep the title visible before the first row.
         maskHeight = (title != nil) ? gridOffsetY : 0.0
     }
 

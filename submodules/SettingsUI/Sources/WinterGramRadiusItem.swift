@@ -13,9 +13,6 @@ enum WinterGramRadiusPreviewKind {
     case bubble
 }
 
-// Draws a small live preview that reflects the chosen corner radius: a sample avatar
-// (the user's actual avatar when available, otherwise a gradient rounded square with a person glyph)
-// or a sample chat bubble.
 private func winterGramRadiusPreviewImage(kind: WinterGramRadiusPreviewKind, value: Int32, minValue: Int32, maxValue: Int32, size: CGSize, theme: PresentationTheme, avatarImage: UIImage? = nil) -> UIImage {
     let renderer = UIGraphicsImageRenderer(size: size)
     return renderer.image { rendererContext in
@@ -148,8 +145,6 @@ class WinterGramRadiusItemNode: ListViewItemNode {
 
         self.addSubnode(self.titleNode)
         self.addSubnode(self.valueNode)
-        // WinterGram: the inline radius preview next to the slider is intentionally NOT shown — the
-        // rounding is previewed in the chat preview instead. The slider spans the full width.
     }
 
     deinit {

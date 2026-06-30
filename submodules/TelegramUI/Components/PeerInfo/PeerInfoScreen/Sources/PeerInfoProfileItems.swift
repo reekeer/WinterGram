@@ -171,7 +171,7 @@ func infoItems(
             }
             var displayId = "\(rawId)"
             if let winterGramDcId = winterGramDcId {
-                displayId += " (DC: \(winterGramDcId))"
+                displayId += " (dc: \(winterGramDcId))"
             }
             let copyId: () -> Void = { [weak interaction] in
                 UIPasteboard.general.string = "\(rawId)"
@@ -179,7 +179,7 @@ func infoItems(
                     controller.present(UndoOverlayController(presentationData: presentationData, content: .copy(text: presentationData.strings.Conversation_TextCopied), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return false }), in: .current)
                 }
             }
-            items[.winterGramInfo]!.append(PeerInfoScreenLabeledValueItem(id: 3099, label: "ID", text: displayId, textColor: .primary, action: { _, _ in
+            items[.winterGramInfo]!.append(PeerInfoScreenLabeledValueItem(id: 3099, label: "id", text: displayId, textColor: .primary, action: { _, _ in
                 copyId()
             }, longTapAction: nil, contextAction: { _, gesture, _ in
                 copyId()
@@ -192,9 +192,9 @@ func infoItems(
         if currentWinterGramSettings.showRegistrationDate, !user.isDeleted, let date = winterGramEstimatedRegistrationDate(userId: user.id.id._internalGetInt64Value()) {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: presentationData.strings.baseLanguageCode)
-            formatter.dateFormat = "MMMM yyyy"
-            let dateText = "≈ " + formatter.string(from: date)
-            items[.winterGramInfo]!.append(PeerInfoScreenLabeledValueItem(id: 3098, label: "Registered", text: dateText, textColor: .primary, action: nil, longTapAction: nil, contextAction: { _, gesture, _ in
+            formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+            let dateText = formatter.string(from: date)
+            items[.winterGramInfo]!.append(PeerInfoScreenLabeledValueItem(id: 3098, label: presentationData.strings.WinterGram_RegistrationDate, text: dateText, textColor: .primary, action: nil, longTapAction: nil, contextAction: { _, gesture, _ in
                 UIPasteboard.general.string = dateText
                 gesture?.cancel()
             }, requestLayout: { animated in

@@ -94,7 +94,8 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
             self.navigationItem.leftBarButtonItem = UIBarButtonItem(title: "___close", style: .plain, target: self, action: #selector(self.cancelPressed))
         }
         
-        if let countriesConfiguration {
+        if let countriesConfiguration, !countriesConfiguration.countries.isEmpty {
+            // Keep the bundled fallback when the server config is empty.
             AuthorizationSequenceCountrySelectionController.setupCountryCodes(countries: countriesConfiguration.countries, codesByPrefix: countriesConfiguration.countriesByPrefix)
         }
     }

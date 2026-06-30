@@ -14,7 +14,7 @@ import LocationUI
 ///   - `.webpage(webPage)` cover → single-entry `InstantPageGalleryController`.
 ///   - `.file(file)` with `isAnimated` → single-entry gallery in "playing video" mode.
 ///   - Default → multi-entry gallery built from `allMedias` (filtered to `.image` and non-audio
-///     `.file` — audio/music siblings are excluded), centered on the tapped media; "playing
+///     `.file`; audio and music siblings are excluded), centered on the tapped media; "playing
 ///     video" mode is on.
 ///
 /// Behavior matches V1's `InstantPageControllerNode.openMedia(_:)` bit-for-bit.
@@ -23,7 +23,7 @@ import LocationUI
 ///   - allMedias: every laid-out media on the page, in laid-out order. Used to build sibling
 ///     entries when the gallery needs them. Callers may pass `[]` for paths that don't need
 ///     siblings (e.g. webpage-cover single-entry gallery), but it's safer to always pass the
-///     full list — the helper filters/uses it only on the default branch.
+///     full list. The helper filters it only on the default branch.
 ///   - transitionArgsForMedia: invoked by the gallery presentation to find the source rect for
 ///     the swipe-back animation; return `nil` if the source view is not on screen.
 ///   - hiddenMediaCallback: invoked while the gallery is foregrounded so callers can hide the

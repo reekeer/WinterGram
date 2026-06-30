@@ -51,12 +51,12 @@ func isAllowedBotMediaUrl(_ urlString: String) -> Bool {
     // Strict canonical dotted-decimal IPv4 (4 octets, no leading zeros, each 0-255).
     // Do NOT use inet_pton here: Darwin's inet_pton accepts "0177.0.0.1" as
     // decimal 177.0.0.1, but getaddrinfo (used by URLSession) interprets the
-    // same string as octal 127.0.0.1 — the divergence is a loopback bypass.
+    // same string as octal 127.0.0.1. The divergence is a loopback bypass.
     if let v4Bytes = parseCanonicalIPv4(host) {
         return isPublicIPv4(v4Bytes)
     }
 
-    // IPv6 only — host must contain ":" so we don't accidentally hand a
+    // IPv6 only. Require ":" to avoid handing a
     // numeric-looking hostname to inet_pton.
     if host.contains(":") {
         var v6 = in6_addr()
@@ -70,7 +70,7 @@ func isAllowedBotMediaUrl(_ urlString: String) -> Bool {
     }
 
     // Strict DNS-name validation. Anything that doesn't look like a real
-    // FQDN is rejected — this catches non-canonical numeric IP forms
+    // FQDN is rejected. This catches non-canonical numeric IP forms
     // (decimal-32 like "2130706433", octal like "0177.0.0.1", hex like
     // "0x7f.0.0.1", short forms like "127.1") that the OS resolver may
     // still treat as 127.0.0.1 even when inet_pton would accept them as

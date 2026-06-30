@@ -107,6 +107,8 @@ typedef enum {
     UIView *_wrapperView;
     UIView *_startButton;
 
+    UIImageView *_firstPageIconView;
+
     bool _loadedView;
 }
 @end
@@ -379,6 +381,14 @@ typedef enum {
         p.clearsContextBeforeDrawing = false;
         [_pageViews addObject:p];
         [_pageScrollView addSubview:p];
+
+        // Brand icon on the first intro page; frame is set in -updateLayout.
+        if (i == 0 && _firstPageIcon != nil) {
+            p.clipsToBounds = false;
+            _firstPageIconView = [[UIImageView alloc] initWithImage:_firstPageIcon];
+            _firstPageIconView.contentMode = UIViewContentModeScaleAspectFit;
+            [p addSubview:_firstPageIconView];
+        }
     }
     [_pageScrollView setPage:0];
 
@@ -574,6 +584,17 @@ typedef enum {
     [_pageViews enumerateObjectsUsingBlock:^(UIView *pageView, NSUInteger index, __unused BOOL *stop) {
         pageView.frame = CGRectMake(index * self.view.bounds.size.width, (pageY - statusBarHeight), self.view.bounds.size.width, 150);
     }];
+
+    if (_firstPageIconView != nil) {
+        bool isIpad = ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad);
+        CGFloat glSize = isIpad ? 200.0f * 1.2f : 200.0f;
+        CGFloat iconSize = floor(glSize * 0.6f);
+        // Center the icon on the GL animation square, in page-local coordinates.
+        CGFloat glCenterY = (_glkView.frame.origin.y + glSize / 2.0f);
+        CGFloat pageTopAbsolute = _pageScrollView.frame.origin.y + (pageY - statusBarHeight);
+        CGFloat iconCenterYLocal = glCenterY - pageTopAbsolute;
+        _firstPageIconView.frame = CGRectMake(floor((self.view.bounds.size.width - iconSize) / 2.0f), iconCenterYLocal - iconSize / 2.0f, iconSize, iconSize);
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated

@@ -1693,7 +1693,6 @@ public final class MessageInputPanelComponent: Component {
                 }
             }
 
-            // AI Button
             do {
                 let isTallPanel = textFieldSize.height >= 70.0
                 let textLength = self.textFieldExternalState.textLength

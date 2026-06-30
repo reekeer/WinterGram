@@ -4051,7 +4051,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         // In overlay chat mode (self.containerNode != nil) historyNodeContainer is
         // reparented out of contentContainerNode (see line ~1299), making the
         // `aboveSubview: historyNodeContainer.view` insertion invalid. Return nil
-        // so callers fall back to CCEPN's clipping path — portal-style transitions
+        // so callers fall back to CCEPN's clipping path. Portal-style transitions
         // are not supported in overlay mode.
         guard self.containerNode == nil else { return nil }
         let parent = self.contentContainerNode.contentNode.view

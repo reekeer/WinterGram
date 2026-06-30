@@ -195,9 +195,7 @@ public final class PeerInfoGiftsCoverComponent: Component {
         }
 
         private func recomputeGifts() {
-            // WinterGram: visual (fake NFT) gifts are merged via `additionalGifts`, so we must render
-            // them even before the real gifts state has loaded (e.g. a profile with no pinned gifts).
-            // Don't bail when `currentGiftsState` is nil — just treat the pinned set as empty.
+            // WinterGram: merge visual gifts from `additionalGifts` even before the real gifts state loads.
             let giftStatusId = self.currentGiftStatusId
             let pinnedGifts = (self.currentGiftsState?.gifts ?? []).filter { gift in
                 if gift.pinnedToTop {

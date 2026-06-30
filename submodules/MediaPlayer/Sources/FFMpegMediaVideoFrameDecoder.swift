@@ -248,8 +248,8 @@ public final class FFMpegMediaVideoFrameDecoder: MediaTrackFrameDecoder {
         guard format == .YUV || format == .YUVA else {
             return false
         }
-        // Reject bottom-up / negative-stride frames before any row-copy loop — ffmpeg
-        // rawdec flips linesize[0] for codec_tag WRAW/cyuv/BottomUp, and other decoders
+        // Reject bottom-up and negative-stride frames before copying rows.
+        // ffmpeg rawdec flips linesize[0] for WRAW, cyuv, and BottomUp.
         // (dxtory, mimic, mjpegdec, scpr) flip the chroma planes too.
         if frame.lineSize[0] < 0 || frame.lineSize[1] < 0 || frame.lineSize[2] < 0 {
             return false

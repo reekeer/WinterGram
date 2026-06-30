@@ -22,17 +22,12 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
     
     private let containerNode: ContainerNode
     public var statusNode: ChatMessageDateAndStatusNode?
-    // `init()` may run off the main thread; UIView construction must happen on the main thread.
-    // The page view is built lazily inside the apply closure (always main-thread) via ensurePageView().
+    // `init()` may run off the main thread, so build the page view lazily on the main thread.
     private var pageView: InstantPageV2View?
-    // Tracks the message (id + stableVersion) baked into the current pageView's render context.
-    // The synthesized webpage uses a sentinel id (namespace 0, id 0) shared across all richText
-    // messages, so we key cache invalidation on the message itself. When the bubble is recycled
-    // with a different message we must discard pageView (render context is constructor-fixed).
+    // The synthesized webpage has a sentinel id shared across all richText messages, so key the
+    // page view on the message id and stableVersion and rebuild when the bubble is recycled.
     private var pageViewMessageKey: (id: EngineMessage.Id, stableVersion: UInt32, showMoreExpanded: Bool)?
-    // messageStableVersion is in the cache key because the synthesized instantPage content
-    // mutates between streamed AI message chunks (each chunk bumps stableVersion); without
-    // this, the cached layout would shadow newly-arrived content during streaming.
+    // Include stableVersion in the layout cache key so streamed chunks do not reuse stale layouts.
     private var currentPageLayout: (boundingWidth: CGFloat,
                                     presentationThemeIdentity: ObjectIdentifier,
                                     expandedDetails: [Int: Bool],
@@ -40,9 +35,9 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                                     showMoreExpanded: Bool,
                                     layout: InstantPageV2Layout)?
     private var currentExpandedDetails: [Int: Bool] = [:]
-    // Intra-message anchor scroll that is waiting on a collapsed <details> to expand + relayout.
+    // Anchor scroll waiting on a collapsed <details> to expand and relayout.
     private var pendingScrollAnchor: String?
-    // Progress guard: the details index expanded on the previous pending pass.
+    // Details index expanded on the previous pending pass, used to avoid looping.
     private var lastExpandedPendingDetailsIndex: Int?
     private var linkProgressDisposable: Disposable?
     private var linkProgressRects: [CGRect]?
@@ -54,16 +49,13 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
     private var textRevealController: TextRevealController?
     private var textRevealLink: SharedDisplayLinkDriver.Link?
     private var currentRevealCostMap: InstantPageV2RevealCostMap?
-    // Cursor value pushed into pageView.applyReveal on the prior tick. The display-link tick
-    // compares the revealed prefix's height at this cursor vs the new cursor to decide when
-    // to request a full bubble re-layout (so the bubble grows with the reveal).
+    // Cursor from the previous display-link tick, used to detect when the revealed height
+    // changes and request a full bubble relayout.
     private var lastAppliedRevealedCount: Int = 0
     private var displayContentsUnderSpoilers: Bool = false
     private var relativeDateTimer: (timer: SwiftSignalKit.Timer, period: Int32)?
 
-    // "Show more" affordance for partial rich messages (instantPage.isComplete == false).
-    // Managed inline, mirroring the statusNode pattern: a bubble-owned TextNode below the page
-    // content, with a TextLoadingEffectView shimmer while the full-text request is in flight.
+    // "Show more" link for partial rich messages, with a shimmer while the full text loads.
     private var showMoreTextNode: TextNode?
     private var showMoreLoadingView: TextLoadingEffectView?
     private var requestFullRichTextDisposable: Disposable?
@@ -115,7 +107,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
         self.addSubnode(self.containerNode)
     }
 
-    /// Builds (or reuses) the V2View. Same-message stableVersion bumps (streamed AI chunks) reuse
+    /// Builds or reuses the V2View. Same-message stableVersion bumps reuse
     /// the existing view, updating only the webpage content in place. The view is rebuilt only when
     /// the bubble is recycled with a different message/webpage (different message id).
     private func ensurePageView(item: ChatMessageBubbleContentItem, webpage: TelegramMediaWebpage, showMoreExpanded: Bool) -> InstantPageV2View {
@@ -136,7 +128,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
         self.pageView?.removeFromSuperview()
         self.pageView = nil
 
-        // Capture only the MessageReference (value type) — the closures are retained on the
+        // Capture only the value-type MessageReference.
         // render context which is owned by the V2View, so we must avoid making them retain
         // the bubble (`self`) or the message indirectly via `item`.
         let messageReference = MessageReference(item.message)
@@ -402,7 +394,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                        current.layout.formattedDateUpdatePeriod == nil {
                         // Reuse the cached layout only when it has no relative `textDate`. A relative
                         // date's formatted string ("N minutes ago") is baked into the laid-out text at
-                        // layout time, and none of the cache-key inputs change as wall-clock advances —
+                        // layout time, and the cache key does not change as wall-clock time advances,
                         // so reusing it would freeze the date and defeat the refresh timer (which fires
                         // `requestFullUpdate` precisely to re-run `layoutInstantPageV2` → `formatDate`).
                         // Forcing a recompute for relative-date pages keeps the timer's tick visible.
@@ -456,7 +448,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
 
                 if hasDraft {
                     // The bubble's bottom inset is supplied by the `statusBottomEdge + 6.0`
-                    // max() in the measure closure below — but that branch is gated by
+                    // max() in the measure closure below, but that branch is gated by
                     // `!hasDraft`, so during streaming the bubble has only its 1pt bottom rim
                     // past `revealedContentSize.height` (= bounds.maxY + closingPad). Without
                     // this, descenders of the last revealed line sit cramped against the
@@ -591,7 +583,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                     let frame = CGRect(origin: CGPoint(x: pageHorizontalInset, y: pageLayout.contentSize.height + showMoreTopSpacing), size: layout.0.size)
                     showMoreLayoutResult = layout
                     showMoreFramePageLocal = frame
-                    // Date trails the link line (or wraps below it if it doesn't fit) — reuse the
+                    // Date trails the link line or wraps below it. Reuse the
                     // status machinery by substituting the link frame for the last-text-line frame.
                     lastTextLineFrame = frame
                     lastTextLineTrailingPadding = 0.0
@@ -608,11 +600,11 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                     }
 
                     // Measure trailing extent from the line's actual visible RIGHT EDGE (after
-                    // alignment, in page coords) — not just its intrinsic width. A right-aligned
+                    // alignment, in page coordinates), not just its intrinsic width. A right-aligned
                     // or RTL last line has `lineWidth` worth of glyphs but sits all the way at
                     // the right text inset (lineFrame.maxX == text.frame.minX + textItem.width).
                     // Feeding the status node just `lineWidth` would let the trail/wrap decision
-                    // place the date inline with the line — on top of it. `pageHorizontalInset`
+                    // place the date inline with the line, on top of it. `pageHorizontalInset`
                     // is the offset between page-coords and status-node-local coords (the status
                     // node sits at x=pageHorizontalInset in self, and pageView sits at self-x 0).
                     let trailingWidthToMeasure: CGFloat = lastTextLineFrame.map { $0.maxX - pageHorizontalInset } ?? 10000.0
@@ -657,7 +649,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                     // lands at the right text inset rather than past the bubble's right edge.
                     let statusSizeAndApply = statusSuggestedWidthAndContinue?.1(boundingWidth - pageHorizontalInset * 2.0)
                     if let statusSizeAndApply, !hasDraft {
-                        // Status node anchor Y in the content node's space — mirrors the apply
+                        // Status node anchor Y in the content node's space mirrors the apply
                         // closure below.
                         let statusAnchorY: CGFloat
                         if let lastTextLineFrame {
@@ -698,7 +690,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
 
                         // On the collapse→expand transition (tapping "Show more"), grow the bubble
                         // downward in screen space (inverted list offset direction) instead of pushing
-                        // earlier messages up — matching the audio-transcription expand. The ListView
+                        // earlier messages up, matching audio transcription expansion. The ListView
                         // clamps this to what fits, so "if possible" is handled for us. Only fires on a
                         // change, and never on the first apply (appliedShowMoreExpanded is nil).
                         if let appliedShowMoreExpanded = self.appliedShowMoreExpanded, appliedShowMoreExpanded != showMoreExpanded {
@@ -791,7 +783,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                             // Continue an in-flight anchor scroll that is waiting on a <details>
                             // expansion to re-lay-out. This runs on EVERY apply pass (not only the
                             // expand-triggered one), but only does anything while a scroll is pending
-                            // — and scrollToAnchor is idempotent: each invocation either resolves and
+                            // scrollToAnchor is idempotent: each invocation resolves and
                             // scrolls (clearing pending) or expands the next collapsed level, and the
                             // progress guard guarantees termination. So an unrelated relayout (theme,
                             // width, reactions) that lands mid-expand simply advances/no-ops the loop.
@@ -839,7 +831,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                         }
 
                         if let formattedDateUpdatePeriod = pageLayout?.formattedDateUpdatePeriod {
-                            // Recreate the timer only when the period changes — unlike the TextBubble
+                            // Recreate the timer only when the period changes.
                             // reference (ChatMessageTextBubbleContentNode), which rebuilds it every apply.
                             // The timer fires `requestFullUpdate`, which relays out and re-enters here; at
                             // a steady period this guard is false, so the running timer keeps its schedule
@@ -862,7 +854,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
 
                         // 1. Compute / cache the cost map.
                         // Reuse the cost map computed in the layout pass (the bubble's
-                        // size depended on it) — don't recompute. Keep the previous map
+                        // size depended on it). Keep the previous map
                         // alive while a reveal/finalize is still in flight: on a post-
                         // streaming pass (hasDraft && hadDraft both false) revealCostMap is
                         // nil, and clobbering it would strand the display-link tick (whose
@@ -882,8 +874,8 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
                             }
                             // Seed the (possibly freshly rebuilt) V2 view to the reveal cursor's
                             // current position so we don't flash full text. Use the live controller
-                            // count rather than `previousAnimateGlyphCount`, which is nil — and would
-                            // reset the reveal to 0 — on post-streaming finalize passes where the
+                            // count rather than nil `previousAnimateGlyphCount`, which would
+                            // reset the reveal to 0 on final passes where the
                             // controller is still animating.
                             let seedCount = self.textRevealController?.currentGlyphCount ?? previousAnimateGlyphCount ?? 0
                             self.pageView?.applyReveal(revealedCount: seedCount,
@@ -1061,7 +1053,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
         // "attribute substring with displayed range" API, so we cannot compare
         // displayed text to the resolved URL the way the chat text bubble does.
         // The chat URL handler will show a confirmation when concealed is true
-        // and the visible text differs from the destination — safer default.
+        // and the visible text differs from the destination.
         let concealed = true
         let url = ChatMessageBubbleContentTapAction.Url(url: urlHit.urlItem.url, concealed: concealed, allowInlineWebpageResolution: urlHit.urlItem.webpageId != nil)
         let rects = self.computeHighlightRects(item: urlHit.item, parentOffset: urlHit.parentOffset, localPoint: urlHit.localPoint)
@@ -1122,21 +1114,17 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
         } else if let botCommand = attributes[NSAttributedString.Key(rawValue: TelegramTextAttributes.BotCommand)] as? String {
             return .botCommand(botCommand)
         } else if let hashtag = attributes[NSAttributedString.Key(rawValue: TelegramTextAttributes.Hashtag)] as? TelegramHashtag {
-            // Cashtags are carried as a Hashtag attribute (no dedicated cashtag key/tap-action exists);
-            // the leading "$" in the string distinguishes them, and the chat hashtag handler searches both.
+            // Cashtags use the hashtag attribute and retain their leading "$".
             return .hashtag(hashtag.peerName, hashtag.hashtag)
         } else if let bankCard = attributes[NSAttributedString.Key(rawValue: TelegramTextAttributes.BankCard)] as? String {
             return .bankCard(bankCard)
         } else if let date = attributes[NSAttributedString.Key(rawValue: TelegramTextAttributes.Date)] as? Int32 {
-            // The displayed string is unused downstream (ChatMessageBubbleItemNode matches `.date(date, _)`).
             return .date(date, "")
         }
         return nil
     }
 
-    /// Bridges an InstantPageUrlItem (used by the gallery's caption URL handler) to the
-    /// chat layer's URL handler. `concealed: true` matches `tapActionAtPoint` for the same
-    /// reason: V2 cannot reliably compare displayed link text to the resolved URL.
+    // Open gallery caption links through the chat URL handler.
     private func openInstantPageUrl(_ url: InstantPageUrlItem) {
         guard let item = self.item else { return }
         item.controllerInteraction.openUrl(ChatControllerInteraction.OpenUrl(
@@ -1147,9 +1135,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
     }
 
     private func computeHighlightRects(item: InstantPageTextItem, parentOffset: CGPoint, localPoint: CGPoint) -> [CGRect] {
-        // Text item returns rects in its local coords; translate back into containerNode-local coords.
-        // containerNode is offset by (1, 1) from the bubble-content-node, but the highlight overlay lives
-        // *inside* containerNode, so we use layout-coords (= containerNode-local) for the rects.
+        // Translate text-local rects into container coordinates.
         let originX = parentOffset.x
         let originY = parentOffset.y
         return item.linkSelectionRects(at: localPoint).map { rect in
@@ -1443,7 +1429,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
             item.controllerInteraction.scrollToMessageIdWithAnchor(item.message.index, anchor)
             return
         }
-        // 2. Not laid out — it may be buried in a collapsed <details>. Find the path and expand
+        // If hidden in collapsed details, find the path and expand
         //    the first collapsed details on it, then retry after the relayout (post-relayout hook).
         let anchorExpanded = (self.showMoreExpanded?.messageId == item.message.id) ? (self.showMoreExpanded?.value ?? false) : false
         guard let instantPage = item.message.richText.map({ (anchorExpanded ? $0.fullInstantPage : nil) ?? $0.instantPage }),
@@ -1482,7 +1468,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
         if let state = self.showMoreExpanded, state.messageId == messageId, state.value {
             return
         }
-        // Full page already cached on the attribute — expand immediately, no network, no shimmer.
+        // Expand a cached full page immediately.
         if attribute.fullInstantPage != nil {
             self.showMoreExpanded = (messageId, true)
             item.controllerInteraction.requestMessageUpdate(messageId, false, nil)

@@ -707,11 +707,11 @@ public final class TabBarComponent: Component {
 
             let equalWidth = floorToScreenPixels(availableItemsWidth / CGFloat(component.items.count))
             if unboundItemWidths.allSatisfy({ $0 <= equalWidth }) {
-                // All items fit in equal width — use equal widths for optical alignment
+                // Use equal widths when all items fit.
                 itemWidths = Array(repeating: equalWidth, count: component.items.count)
                 totalItemsWidth = equalWidth * CGFloat(component.items.count)
             } else {
-                // Some items need more space — use weighted fit
+                // Use weighted widths when some items need more space.
                 let itemWeightNorm: CGFloat = availableItemsWidth / unboundItemWidthSum
                 var widths: [CGFloat] = []
                 var total: CGFloat = 0.0

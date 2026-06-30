@@ -7,8 +7,6 @@ import TelegramPresentationData
 import ItemListUI
 import PresentationDataUtils
 
-// A hero banner shown at the very top of the WinterGram settings menu, just under the navigation
-// bar / Dynamic Island: a snowflake app-tile, the WinterGram name and a short tagline.
 private func winterGramBannerIcon(size: CGSize) -> UIImage {
     let renderer = UIGraphicsImageRenderer(size: size)
     return renderer.image { rendererContext in
@@ -28,7 +26,6 @@ private func winterGramBannerIcon(size: CGSize) -> UIImage {
     }
 }
 
-// Renders the user's current app icon as a rounded-rect tile for the banner.
 private func winterGramBannerRoundedIcon(image: UIImage, size: CGSize) -> UIImage {
     let renderer = UIGraphicsImageRenderer(size: size)
     return renderer.image { _ in
@@ -137,7 +134,6 @@ class WinterGramBannerItemNode: ListViewItemNode {
                 strongSelf.item = item
                 let width = params.width
 
-                // No grey backplate behind the banner — it sits flat on the grouped background.
                 strongSelf.backgroundNode.backgroundColor = .clear
                 strongSelf.backgroundNode.frame = CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: CGSize(width: width, height: contentHeight))
 

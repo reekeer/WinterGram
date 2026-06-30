@@ -1224,6 +1224,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             let sharedApplicationContext = SharedApplicationContext(sharedContext: sharedContext, notificationManager: notificationManager, wakeupManager: wakeupManager)
             sharedApplicationContext.sharedContext.mediaManager.overlayMediaManager.attachOverlayMediaController(sharedApplicationContext.overlayMediaController)
             self.winterGramSettingsDisposable.set(observeWinterGramSettings(accountManager: accountManager))
+            WinterGramBadgeManager.shared.start()
             self.winterGramGlassDisposable.set((winterGramSettings(accountManager: accountManager)
             |> deliverOnMainQueue).start(next: { settings in
                 let glass = settings.liquidGlass

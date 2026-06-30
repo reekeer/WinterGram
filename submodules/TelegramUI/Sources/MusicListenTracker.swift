@@ -43,7 +43,7 @@ final class MusicListenTracker {
     func update(with stateAndType: (Account, SharedMediaPlayerItemPlaybackStateOrLoading, MediaManagerPlayerType)?) {
         assert(Queue.mainQueue().isCurrent())
         guard let (_, stateOrLoading, type) = stateAndType, type == .music else {
-            // Player closed or switched to non-music — report and clear
+            // Report when the player closes or switches away from music.
             self.reportAndReset()
             return
         }
@@ -135,7 +135,7 @@ final class MusicListenTracker {
             self.pauseTimer?.invalidate()
             self.pauseTimer = nil
         } else if !nowPlaying && wasPlaying {
-            // Just paused — start pause timer
+            // Start the pause timer.
             self.startPauseTimer()
         }
 
@@ -154,7 +154,7 @@ final class MusicListenTracker {
     }
 
     private func pauseTimerFired() {
-        // Paused > 60s — report current session
+        // Report after a 60-second pause.
         self.reportAndReset()
     }
 

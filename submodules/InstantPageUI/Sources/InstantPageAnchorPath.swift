@@ -4,9 +4,9 @@ import TelegramCore
 /// Recurses the `InstantPage` block tree to locate the anchor `name`, returning the
 /// details-sibling-ordinal path of enclosing `<details>` blocks (outermost first).
 ///
-/// - `nil`  — the anchor exists nowhere.
-/// - `[]`   — the anchor exists outside any `<details>` (top level, a table cell, a quote, etc.).
-/// - `[2,0]`— inside the 3rd top-level `<details>`, then that details' 1st nested `<details>`.
+/// - `nil`: the anchor does not exist.
+/// - `[]`: the anchor is outside any `<details>`.
+/// - `[2, 0]`: the third top-level `<details>`, then its first nested `<details>`.
 ///
 /// Ordinals (not layout indices) because the layout's details index counter is
 /// expansion-dependent. Consumers map ordinals to live indices via
@@ -71,23 +71,7 @@ private func instantPageAnchorPathSearch(
                 }
             }
         default:
-            // .unsupported/.divider/.formula/.image/.video/.audio/.webEmbed/.channelBanner/.map —
-            // leaf/media blocks with no anchor-bearing text. (.relatedArticles also lands here: the
-            // V2 layout discards its title and lays out only the article media, so its title text is
-            // never rendered.)
-            //
-            // CRITICAL — the recursion set here must match the containers the V2 layout recurses
-            // through layoutBlock (and thus counts <details> in via detailsIndexCounter). Those are
-            // exactly .blockQuote, .cover, and .list's .blocks items — all handled above, sharing
-            // detailsOrdinal. The following carry [InstantPageBlock] children but are deliberately
-            // NOT recursed because the V2 layout does NOT lay their children out as blocks, so it
-            // never counts a nested <details> in them — recursing here while sharing detailsOrdinal
-            // would desync our ordinals from the layout:
-            //   • .collage/.slideshow — layoutCollage/layoutSlideshow lay out only .image/.video children.
-            //   • .postEmbed — layoutMediaWithCaption lays out only its caption (a real .text item,
-            //     so a caption anchor is found by anchorFrame directly); its `blocks` are ignored.
-            // Any anchor inside a non-laid-out child is unresolvable by anchorFrame anyway, so
-            // skipping it here is a no-op either way.
+            // Keep recursion aligned with the V2 block layout.
             break
         }
     }

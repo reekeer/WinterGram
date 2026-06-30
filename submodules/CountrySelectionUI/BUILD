@@ -16,6 +16,7 @@ swift_library(
         "//submodules/TelegramCore:TelegramCore",
         "//submodules/TelegramPresentationData:TelegramPresentationData",
         "//submodules/TelegramStringFormatting:TelegramStringFormatting",
+        "//submodules/libphonenumber:libphonenumber",
         "//submodules/SearchBarNode:SearchBarNode",
         "//submodules/AppBundle:AppBundle",
         "//submodules/ComponentFlow",

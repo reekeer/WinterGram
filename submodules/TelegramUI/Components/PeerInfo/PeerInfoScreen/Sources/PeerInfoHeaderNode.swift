@@ -1642,8 +1642,7 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             }
         }
 
-        // WinterGram: render the snowflake/developer badge last, to the right of the premium emoji
-        // status, the verified mark and any credibility icon — mirroring the chat-list ordering.
+        // WinterGram: render the snowflake/developer badge last, mirroring the chat-list ordering.
         if let winterGramIconSize = self.winterGramIconSize, let titleExpandedWinterGramIconSize = self.titleExpandedWinterGramIconSize, winterGramIconSize.width > 0.0 {
             // Extra leading gap (vs the 4pt used between other icons) so the badge sits ~symmetrically
             // after the premium emoji status, which carries its own internal transparent padding.

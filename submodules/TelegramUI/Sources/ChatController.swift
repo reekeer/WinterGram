@@ -5494,7 +5494,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                 return
             }
             // Find the bubble for this message (it must be at least partially
-            // visible — we got here from a tap inside it) and compute the
+            // visible because the tap came from it) and compute the
             // anchor's y in item-local coords. .bottom(anchorY) places the item
             // so the anchor lands at the visual top of the rotated chat list's
             // content area; .center(.custom) is bypassed for short items, so it

@@ -402,22 +402,22 @@
 
 // Tour
 "Tour.Title1" = "WinterGram";
-"Tour.Text1" = "The world's **fastest** messaging app.\nIt is **free** and **secure**.";
+"Tour.Text1" = "A native **AyuGram** port for iPhone.\nAn open-source **Telegram** fork.";
 
-"Tour.Title2" = "Fast";
-"Tour.Text2" = "**WinterGram** delivers messages\nfaster than any other application.";
+"Tour.Title2" = "Telegram Fork";
+"Tour.Text2" = "Fully compatible with **Telegram**.\nYour chats, channels and accounts.";
 
-"Tour.Title3" = "Powerful";
-"Tour.Text3" = "**WinterGram** has no limits on\nthe size of your media and chats.";
+"Tour.Title3" = "Power Tools";
+"Tour.Text3" = "Saved **deleted messages**, full **edit\nhistory** and a **hidden archive**.";
 
-"Tour.Title4" = "Secure";
-"Tour.Text4" = "**WinterGram** keeps your messages\nsafe from hacker attacks.";
+"Tour.Title4" = "Make It Yours";
+"Tour.Text4" = "Deep **customization**, **Liquid Glass**,\nlocal **Premium** and a device **spoofer**.";
 
-"Tour.Title5" = "Cloud-Based";
-"Tour.Text5" = "**WinterGram** lets you access your\nmessages from multiple devices.";
+"Tour.Title5" = "Open Source";
+"Tour.Text5" = "Free and fully **open-source**.\nInspect and build it yourself.";
 
-"Tour.Title6" = "Free";
-"Tour.Text6" = "**WinterGram** provides free unlimited\ncloud storage for chats and media.";
+"Tour.Title6" = "Ghost Mode";
+"Tour.Text6" = "Read messages without sending\nread receipts, online or typing status.";
 
 "Tour.StartButton" = "Start Messaging";
 
@@ -16509,6 +16509,7 @@ Error: %8$@";
 "WinterGram.ShowMessageSeconds" = "Show Message Seconds";
 "WinterGram.ShowPeerID" = "Show Peer ID";
 "WinterGram.ShowRegistrationDate" = "Show Registration Date";
+"WinterGram.RegistrationDate" = "Registration date";
 "WinterGram.SingleCornerRadius" = "Single Corner Radius";
 "WinterGram.SomeSettingsWillTakeEffectAfterRestart" = "Some settings will take effect after restart.";
 "WinterGram.SpoofAppVersion" = "App Version";

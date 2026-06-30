@@ -197,8 +197,8 @@ public struct WinterGramVisualGift: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decode(String.self, forKey: .id)
         self.gift = try container.decode(StarGift.self, forKey: .gift)
-        // `EnginePeer` isn't `Codable` and can't be rebuilt without a postbox, so — like
-        // TelegramCore's own `StarGift` — only the peer id is persisted and `fromPeer` is left
+        // `EnginePeer` isn't `Codable` and can't be rebuilt without a postbox.
+        // Like TelegramCore's `StarGift`, only the peer id is persisted and `fromPeer` is left
         // nil on decode, to be resolved lazily by the consumer when a peer is actually needed.
         self.fromPeer = nil
     }
@@ -816,40 +816,16 @@ public func observeWinterGramSettings(accountManager: AccountManager<TelegramAcc
 }
 
 public func isWinterGramOfficialPeer(_ peer: EnginePeer) -> Bool {
-    let peerIdValue = peer.id.id._internalGetInt64Value()
-    switch peer {
-    case .user:
-        return peerIdValue == 885166226 || peerIdValue == 5665997196
-    case .channel:
-        // Raw channel ids (the part after the -100 marker): @wntgram/@wntbeta plus -1003999337820 / -1004348385636.
-        return peerIdValue == 3943351959 || peerIdValue == 4316373875 || peerIdValue == 3999337820 || peerIdValue == 4348385636
-    default:
-        return false
-    }
+    return WinterGramBadgeManager.shared.badge(for: peer) != nil
 }
 
-// Developer accounts get a distinct backplated badge; other official peers keep the plain snowflake.
 public func isWinterGramDeveloperPeer(_ peer: EnginePeer) -> Bool {
-    let peerIdValue = peer.id.id._internalGetInt64Value()
-    switch peer {
-    case .user:
-        return peerIdValue == 885166226 || peerIdValue == 5665997196
-    default:
-        return false
-    }
+    return WinterGramBadgeManager.shared.badge(for: peer)?.id == "developer"
 }
 
-// Name of the bundled badge image for a peer, or nil if the peer carries no WinterGram badge.
-// Developers and official channels get the backplated badge; other official peers get the plain snowflake.
 public func winterGramBadgeImageName(for peer: EnginePeer) -> String? {
-    if isWinterGramDeveloperPeer(peer) {
-        return "WntGramDeveloperBadge"
+    guard let badge = WinterGramBadgeManager.shared.badge(for: peer) else {
+        return nil
     }
-    if isWinterGramOfficialPeer(peer) {
-        if case .channel = peer {
-            return "WntGramDeveloperBadge"
-        }
-        return "WinterGramSnowflake"
-    }
-    return nil
+    return badge.id == "developer" ? "WntGramDeveloperBadge" : "WinterGramSnowflake"
 }

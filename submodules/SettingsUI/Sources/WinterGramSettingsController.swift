@@ -76,9 +76,8 @@ public enum WinterGramSettingsSection: Int32, CaseIterable {
     case chat
     case liquidGlass
     case spoofing
-    // Combined "super-categories" shown in the redesigned main menu.
-    case ayugram   // Ghost Mode + History + Hidden Archive
-    case other     // Chat tweaks + Spoofing (show id, registration date, spoofer, …)
+    case ayugram
+    case other
 
     public var title: String {
         switch self {
@@ -106,7 +105,6 @@ public enum WinterGramSettingsSection: Int32, CaseIterable {
     }
 
     public var iconName: String {
-        // SF Symbols used for the main menu cells.
         switch self {
         case .banner:
             return ""
@@ -131,7 +129,6 @@ public enum WinterGramSettingsSection: Int32, CaseIterable {
         }
     }
 
-    // Maps a deep-link path/section name (wnt://wintergram/<name>) to a settings subtab.
     public init?(deepLinkName: String) {
         switch deepLinkName.lowercased() {
         case "ghost", "ghostmode": self = .ghost
@@ -156,8 +153,6 @@ private enum WinterGramDropdown: Equatable {
     case stashPrivacy
 }
 
-// Single source of truth for each inline dropdown's options: display title (English; localized at
-// render time), whether it is the current selection, and how to apply it.
 private func winterGramDropdownOptions(_ dropdown: WinterGramDropdown, settings: WinterGramSettings) -> [(title: String, selected: Bool, apply: (WinterGramSettings) -> WinterGramSettings)] {
     switch dropdown {
     case .stashPrivacy:
@@ -209,8 +204,6 @@ private func winterGramDropdownOptions(_ dropdown: WinterGramDropdown, settings:
     }
 }
 
-// Built-in device-model spoof presets shown as tappable cards in the Spoofing section.
-// `model` is the string reported to Telegram (nil = the device's real model). `subtitle` describes it.
 private let winterGramDevicePresets: [(name: String, subtitle: String, model: String?)] = [
     ("Real device", "Report this device's real model", nil),
     ("iPhone 16 Pro Max", "iPhone17,2 · A18 Pro", "iPhone 16 Pro Max"),
@@ -309,7 +302,6 @@ private enum WinterGramSettingsEntry: ItemListNodeEntry {
     case spoofingApiHash(String)
     case spoofingFooter
 
-    // Expandable single-select row: dropdown key, title, expanded flag, options.
     case expandableSelection(WinterGramDropdown, String, Bool, [ItemListExpandableSelectionItem.Option])
 
     var section: ItemListSectionId {
@@ -349,7 +341,6 @@ private enum WinterGramSettingsEntry: ItemListNodeEntry {
     }
 
     var stableId: Int32 {
-        // Device preset cards nest between spoofingDevice (30000) and WebView platform (40000).
         if case let .spoofingDevicePreset(index, _) = self {
             return 30100 + Int32(index)
         }
@@ -684,12 +675,15 @@ private enum WinterGramSettingsEntry: ItemListNodeEntry {
         case .spoofPresetsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: lang.WinterGram_Templates, sectionId: self.section)
         case let .spoofPreset(index, name, subtitle, editing, selected):
-            if editing {
-                return ItemListCheckboxItem(presentationData: presentationData, systemStyle: .glass, title: name, subtitle: subtitle, style: .left, checked: selected, zeroSeparatorInsets: false, sectionId: self.section, action: {
+            // Always an ItemListCheckboxItem so the row never swaps node *type* between display and
+            // editing. ItemList updates a row in place by stableId and cannot re-type a node (the cast
+            // in updateNode fails silently), which previously left the disclosure row in place in edit
+            // mode and made selection unresponsive. In display mode tapping applies the template; in
+            // edit mode it toggles selection. Bonus: templates now match the device-preset rows below.
+            return ItemListCheckboxItem(presentationData: presentationData, title: name, subtitle: subtitle, style: .left, checked: editing ? selected : false, zeroSeparatorInsets: false, sectionId: self.section, action: {
+                if editing {
                     arguments.toggleSpoofTemplateSelected(index)
-                })
-            } else {
-                return ItemListDisclosureItem(presentationData: presentationData, title: name, label: subtitle, labelStyle: .detailText, sectionId: self.section, style: .blocks, disclosureStyle: .none, action: {
+                } else {
                     arguments.updateSettings { settings in
                         var settings = settings
                         if index < settings.spoofPresets.count {
@@ -699,8 +693,8 @@ private enum WinterGramSettingsEntry: ItemListNodeEntry {
                         }
                         return settings
                     }
-                })
-            }
+                }
+            })
         case .spoofAddTemplate:
             return ItemListPeerActionItem(presentationData: presentationData, icon: PresentationResourcesItemList.plusIconImage(presentationData.theme), title: lang.WinterGram_AddTemplate, sectionId: self.section, height: .generic, color: .accent, editing: false, action: {
                 arguments.addSpoofTemplate()
@@ -787,7 +781,6 @@ private func winterGramSettingsEntries(presentationData: PresentationData, setti
     let lang = presentationData.strings
     var entries: [WinterGramSettingsEntry] = []
 
-    // Appends an expandable single-select row with checkbox options shown inline.
     func appendDropdown(_ dropdown: WinterGramDropdown, _ title: String, _ section: WinterGramSettingsSection) {
         let options = winterGramDropdownOptions(dropdown, settings: settings).enumerated().map { index, option in
             ItemListExpandableSelectionItem.Option(id: "\(dropdown)_\(index)", title: wntOption(option.title, lang), isSelected: option.selected, index: index)
@@ -797,7 +790,6 @@ private func winterGramSettingsEntries(presentationData: PresentationData, setti
 
     func appendGhost() {
         entries.append(.ghostHeader)
-        // Expandable Ghost Mode switch with checkbox sub-items for each suppressed signal.
         let subItems: [ItemListExpandableSwitchItem.SubItem] = [
             .init(id: "readMessages", title: lang.WinterGram_DontReadMessages, isSelected: settings.suppressesReadReceipts, isEnabled: true),
             .init(id: "readStories", title: lang.WinterGram_DontReadStories, isSelected: settings.suppressesStoryViews, isEnabled: true),
@@ -839,7 +831,6 @@ private func winterGramSettingsEntries(presentationData: PresentationData, setti
         entries.append(.stashMute(settings.stashMuteNotifications))
         entries.append(.stashAutoRead(settings.stashAutoMarkRead))
         entries.append(.stashPasscodeRow(settings.stashPasscode.isEmpty ? "None" : "••••"))
-        // All auto-privacy toggles combined into one expandable multi-select checkbox row.
         appendDropdown(.stashPrivacy, lang.WinterGram_AutoPrivacy, .stash)
         entries.append(.stashFooter)
     }
@@ -868,7 +859,6 @@ private func winterGramSettingsEntries(presentationData: PresentationData, setti
         entries.append(.confirmStickers(settings.stickerConfirmation))
         entries.append(.confirmGif(settings.gifConfirmation))
         entries.append(.confirmVoice(settings.voiceConfirmation))
-        // Footer last (stableId 67) so the section stays in ascending stableId order.
         entries.append(.chatFooter)
     }
 
@@ -885,7 +875,6 @@ private func winterGramSettingsEntries(presentationData: PresentationData, setti
 
     func appendSpoofing() {
         entries.append(.spoofingHeader)
-        // Saved spoof templates at the top of the Spoofing section.
         entries.append(.spoofPresetsHeader)
         for (index, preset) in settings.spoofPresets.enumerated() {
             let subtitle = [preset.deviceModel, preset.appVersion].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -895,7 +884,6 @@ private func winterGramSettingsEntries(presentationData: PresentationData, setti
         if spoofTemplatesEditing && !selectedTemplates.isEmpty {
             entries.append(.spoofDeleteSelected)
         }
-        // Device model is chosen via the preset cards below (incl. "Real device") — no separate prompt row.
         for (i, preset) in winterGramDevicePresets.enumerated() {
             entries.append(.spoofingDevicePreset(i, preset.model == settings.spoofDeviceModel))
         }
@@ -950,8 +938,6 @@ public func winterGramSettingsController(context: AccountContext, category: Wint
     var pushControllerImpl: ((ViewController) -> Void)?
     var refreshDeletedCount: (() -> Void)?
 
-    // The combined super-categories (.ayugram/.other) are not standalone tabs in the legacy
-    // no-category segmented view.
     let sectionTabs: [WinterGramSettingsSection] = WinterGramSettingsSection.allCases.filter { $0 != .ayugram && $0 != .other }
     let selectedCategoryPromise = ValuePromise<WinterGramSettingsSection>(category ?? .ghost, ignoreRepeated: true)
 
@@ -968,13 +954,12 @@ public func winterGramSettingsController(context: AccountContext, category: Wint
                                newSettings.customApiHash != initialSettings.customApiHash ||
                                newSettings.materialDesign != initialSettings.materialDesign ||
                                newSettings.customFont != initialSettings.customFont ||
-                               newSettings.monoFont != initialSettings.monoFont
+                               newSettings.monoFont != initialSettings.monoFont ||
+                               newSettings.liquidGlass != initialSettings.liquidGlass
             requiresRestartPromise.set(needsRestart)
         })
     }
 
-    // Applies a change to the stashed-peer privacy settings and re-syncs exceptions for every
-    // currently stashed peer when the rules change.
     let updateStashPrivacy: (@escaping (WinterGramStashPrivacySettings) -> WinterGramStashPrivacySettings) -> Void = { f in
         let previous = currentWinterGramSettings.stashPrivacy
         updateSettings { settings in
@@ -991,12 +976,9 @@ public func winterGramSettingsController(context: AccountContext, category: Wint
         }
     }
 
-    // Which inline dropdown (if any) is currently expanded. Atomic mirror for synchronous reads in the
-    // toggle/select closures; promise drives the list rebuild.
     let expandedDropdownValue = Atomic<WinterGramDropdown?>(value: nil)
     let expandedDropdownPromise = ValuePromise<WinterGramDropdown?>(nil, ignoreRepeated: true)
 
-    // Whether the Ghost Mode expandable section in the Core menu is open.
     let ghostExpandedValue = Atomic<Bool>(value: false)
     let ghostExpandedPromise = ValuePromise<Bool>(false, ignoreRepeated: true)
     let spoofTemplatesEditingValue = Atomic<Bool>(value: false)
@@ -1025,7 +1007,6 @@ public func winterGramSettingsController(context: AccountContext, category: Wint
                     updateSettings { options[index].apply($0) }
                 }
             }
-            // Multi-select dropdowns stay open so the user can toggle more options.
             if dropdown != .stashPrivacy {
                 let _ = expandedDropdownValue.swap(nil)
                 expandedDropdownPromise.set(nil)
@@ -1290,8 +1271,6 @@ public func winterGramSettingsController(context: AccountContext, category: Wint
         controller?.present(c, in: .window(.root), with: a)
     }
     pushControllerImpl = { [weak controller] c in
-        // Keep the restart-banner subscription alive for the controller's lifetime: this
-        // closure is retained by `arguments`, which the ItemListController holds via its state.
         let _ = restartBannerDisposable
         (controller?.navigationController as? NavigationController)?.pushViewController(c)
     }

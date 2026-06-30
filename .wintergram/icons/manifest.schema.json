@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/reekeer/WinterGram/master/.wintergram/icons/manifest.schema.json",
+  "title": "WinterGram dynamic badge manifest",
+  "description": "Layered, GitHub-driven WinterGram profile badges. Geometry is in canvas units (default 1024) and scaled to the render size.",
+  "type": "object",
+  "required": ["version", "badges"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Bump on every change so clients pick up the new manifest."
+    },
+    "canvas": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 1024,
+      "description": "Coordinate space for all layer x/y/width/height."
+    },
+    "badges": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/definitions/badge" }
+    }
+  },
+  "definitions": {
+    "badge": {
+      "type": "object",
+      "required": ["id", "peers", "layers"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "description": "Stable identifier; \"developer\" is treated specially (developer badge)." },
+        "priority": { "type": "integer", "default": 0, "description": "On a peer matching several badges, the highest priority wins." },
+        "description": { "type": "string", "description": "Text shown when the badge is pressed." },
+        "peers": { "$ref": "#/definitions/peers" },
+        "layers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": { "$ref": "#/definitions/layer" }
+        }
+      }
+    },
+    "peers": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Raw int64 ids. For channels use the part after the -100 marker (e.g. -1003999337820 -> 3999337820).",
+      "properties": {
+        "users": { "type": "array", "items": { "type": "integer" } },
+        "channels": { "type": "array", "items": { "type": "integer" } }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "required": ["source"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path under .wintergram/icons/. .png/.jpg -> raster layer; .tgs/.json -> native Lottie layer (then 'animation' is ignored)."
+        },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "tint": {
+          "type": "string",
+          "pattern": "^(theme|none|#[0-9a-fA-F]{6})$",
+          "description": "\"theme\" (accent), \"#RRGGBB\" (fixed), or \"none\" (original colours)."
+        },
+        "animation": { "$ref": "#/definitions/animation" }
+      }
+    },
+    "animation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": ["none", "rotate", "blink", "pulse", "bounce", "shake", "lottie"],
+          "description": "Procedural animation applied to a raster layer. Ignored for Lottie sources."
+        },
+        "duration": { "type": "number", "exclusiveMinimum": 0, "description": "Seconds per cycle." },
+        "loop": { "type": "boolean" },
+        "direction": { "enum": ["cw", "ccw"], "description": "Rotation direction (rotate only)." },
+        "amplitude": { "type": "number", "minimum": 0, "description": "Strength for pulse/bounce/shake (fraction of layer size)." }
+      }
+    }
+  }
+}

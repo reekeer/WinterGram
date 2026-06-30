@@ -16,9 +16,8 @@ import GZip
 import HierarchyTrackingLayer
 import TelegramUIPreferences
 
-// WinterGram: bakes a white-on-transparent shape asset, tinted to `color`, into a CGImage usable as
-// layer contents. Drawing into a renderer context is required because `UIImage.withTintColor(...).cgImage`
-// returns the original (untinted) pixels. Cached per (shape, colour).
+// WinterGram: bake the tinted shape into a CGImage; `UIImage.withTintColor(...).cgImage` returns the
+// original (untinted) pixels, so drawing into a renderer context is required. Cached per (shape, color).
 private var winterGramTintedShapeCache: [String: CGImage] = [:]
 func winterGramBakeTintedShape(_ name: String, color: UIColor) -> CGImage? {
     var r: CGFloat = 0.0, g: CGFloat = 0.0, b: CGFloat = 0.0, a: CGFloat = 0.0
@@ -266,9 +265,8 @@ public final class EmojiStatusComponent: Component {
 
         private var winterGramBackplateLayer: SimpleLayer?
         private var winterGramSnowflakeLayer: SimpleLayer?
-        // Whether the badge backplate should be spinning. Tracked separately so the rotation can be
-        // re-applied when the layer re-enters the hierarchy (Core Animation drops detached animations
-        // when a layer leaves the window — e.g. cell reuse / scrolling / backgrounding).
+        // Track whether the badge backplate should spin so the animation can be restored when the
+        // layer re-enters the hierarchy.
         private var winterGramBadgeAnimating: Bool = false
 
         private var animationLayer: InlineStickerItemLayer?
@@ -300,9 +298,7 @@ public final class EmojiStatusComponent: Component {
             }
         }
 
-        // (Re)applies the infinite backplate-rotation animation for the WinterGram badge. Safe to call
-        // repeatedly: it removes any existing animation first and only re-adds it when animation is
-        // enabled, so re-entering the hierarchy resumes the spin instead of leaving it frozen.
+        // Restore or update the infinite backplate rotation for the WinterGram badge.
         private func applyWinterGramBadgeRotation() {
             guard let backplateLayer = self.winterGramBackplateLayer else {
                 return
@@ -605,8 +601,7 @@ public final class EmojiStatusComponent: Component {
 
             if case let .winterGramBadge(backplateColor) = component.content {
                 size = availableSize
-                // The tint must be BAKED into the bitmap: `UIImage.withTintColor(...).cgImage` returns the
-                // original (white) pixels, which would render the backplate white instead of the theme colour.
+                // Bake the tint into the bitmap; `UIImage.withTintColor(...).cgImage` would keep the white pixels.
                 let backplateImage = winterGramBakeTintedShape("WntGramBackplateShape", color: backplateColor)
                 let snowflakeImage = winterGramBakeTintedShape("WntGramSnowflakeShape", color: .white)
 

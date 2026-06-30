@@ -23,7 +23,7 @@ from typing import List, Optional, Tuple
 
 
 # ---------------------------------------------------------------------------
-# Controller — must stay byte-for-byte equivalent to the Swift implementation.
+# Keep the controller byte-for-byte equivalent to the Swift implementation.
 # ---------------------------------------------------------------------------
 
 CONTROLLER_NAME = "v1"   # set by --algo flag in main()
@@ -130,7 +130,7 @@ class TextRevealControllerV2:
     FRAME_DT_CAP = 0.05
     INITIAL_INPUT_RATE = 40.0    # fallback velocity for the first chunk
     # When predicted_next_arrival has passed (stream stalled), don't speed up
-    # further — clamp time_to_next at this minimum.
+    # Clamp time_to_next at this minimum.
     STALL_FLOOR = 0.10
 
     def __init__(self, initial_revealed_count: int, initial_length: int) -> None:

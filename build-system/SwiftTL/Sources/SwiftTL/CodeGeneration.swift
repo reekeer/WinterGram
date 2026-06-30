@@ -207,8 +207,8 @@ enum CodeGenerator {
         let structName = "\(apiPrefix)\(layerNumber)"
         let filename = "\(apiPrefix)Layer\(layerNumber).swift"
 
-        // All nested type refs (inside the struct) use `structName` as their prefix —
-        // `apiPrefix` is used only to compute `structName` and `filename`. Helpers like
+        // Nested type refs use `structName` as their prefix.
+        // `apiPrefix` only computes `structName` and `filename`. Helpers like
         // typeReferenceRepresentation and generateFieldParsing get `structName`, not
         // `apiPrefix`, so e.g. fields render as `media: SecretApi8.DecryptedMessageMedia`.
 

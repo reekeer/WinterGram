@@ -160,7 +160,7 @@ genrule(
     ],
 )
 
-minimum_os_version = "13.0"
+minimum_os_version = "26.5"
 
 notificationServiceExtensionVersion = "v1"
 
@@ -1850,7 +1850,7 @@ ios_application(
 xcodeproj(
     name = "Telegram_xcodeproj",
     bazel_path = telegram_bazel_path,
-    project_name = "Telegram",
+    project_name = "WinterGram",
     tags = ["manual"],
     top_level_targets = [
         top_level_target(":Telegram", target_environments = ["device", "simulator"]),

@@ -20,7 +20,7 @@ public struct InstantPageV2Layout {
     /// `line.imageItems` MediaIds at update time. Nested layouts (details body,
     /// table cells, table title) carry the parent's same map.
     public let media: [EngineMedia.Id: EngineMedia]
-    /// Webpage carried for the same reason — `updateInlineImages()` needs it to
+    /// Webpage carried because `updateInlineImages()` needs it to
     /// form the `WebpageReference` for `ImageMediaReference.webPage(...)`. May
     /// be nil for non-webpage-anchored layouts; in that case the lookup proceeds
     /// but no fetch signal can be bound (image view simply isn't created).
@@ -121,7 +121,7 @@ public enum InstantPageV2LaidOutItem {
     }
 
     /// Returns a copy of `self` with its top-level frame translated by `delta`.
-    /// Sub-layouts inside details/table cells are not re-translated — they're already
+    /// Sub-layouts inside details and table cells are already
     /// expressed in their parent's local coordinates.
     public func offsetBy(_ delta: CGPoint) -> InstantPageV2LaidOutItem {
         switch self {
@@ -470,7 +470,7 @@ public func lastTextLineFrame(in layout: InstantPageV2Layout) -> CGRect? {
             }
         case let .table(table):
             // Walk cells in reverse row-major order (last cell of last row first).
-            // The renderer shifts cells down by gridOffsetY (title height) — match that here.
+            // Match the renderer's title offset.
             let gridOffsetY = table.titleFrame?.height ?? 0.0
             for cell in table.cells.reversed() {
                 if let subLayout = cell.subLayout, let frame = lastTextLineFrame(in: subLayout) {
@@ -497,7 +497,7 @@ public func lastTextLineFrame(in layout: InstantPageV2Layout) -> CGRect? {
 /// anchor at `maxY + trailingBottomPadding` to align with where the text actually renders. The pad
 /// is 0 when the line is taller than its font line height (a tall inline attachment, e.g. a formula,
 /// already pushes maxY down to the right spot). Callers should NOT apply the pad when the status
-/// wraps onto its own line below the text — there it should sit at the bare maxY.
+/// wraps onto its own line below the text, where it sits at the bare maxY.
 public func lastTextLineFrameIfLastItemIsText(in layout: InstantPageV2Layout) -> (frame: CGRect, trailingBottomPadding: CGFloat)? {
     guard let bottomItem = layout.items.max(by: { $0.frame.maxY < $1.frame.maxY }),
           case let .text(text) = bottomItem,
@@ -505,11 +505,9 @@ public func lastTextLineFrameIfLastItemIsText(in layout: InstantPageV2Layout) ->
     else {
         return nil
     }
-    // The stored line frame always has minX = 0 — alignment (center / right / natural-RTL) is
-    // applied at render time by `v2FrameForLine`. Apply the same correction here so the returned
+    // Alignment is applied at render time by `v2FrameForLine`. Apply the same correction here so the returned
     // frame's `maxX` reflects the line's actual on-screen right edge, not just its width anchored
-    // at the textItem's left. Without this, a right-aligned or RTL last line — whose visible right
-    // edge sits at `textItem.width`, all the way at the right text inset — would feed the status
+    // at the text item's left. Without this, a right-aligned or RTL last line would feed the status
     // node a `contentWidth` equal to just `lineWidth`. The trail/wrap decision would then think
     // the date fits trailing the line, and place it directly on top of the line at the right text
     // inset where the line itself ends. The width is unchanged; only `origin.x` shifts.
@@ -602,8 +600,8 @@ private func layoutBlockSequence(
 
     var contentSize = CGSize(width: boundingWidth, height: contentHeight)
     if context.fitToWidth {
-        // Match V1 InstantPageLayout.swift:1114 — include `+ horizontalInset` so the contentSize
-        // reserves a right margin equal to the left inset. Without this, the longest text item's
+        // Match V1 and include `horizontalInset` in the content size. This
+        // reserves a right margin equal to the left inset. Without it, the longest text item's
         // right edge equals contentSize.width, and the bubble's containerNode (sized to
         // boundingSize.width - 2) clips the last 2pt of text.
         var maxX: CGFloat = 0.0
@@ -755,7 +753,7 @@ private func layoutBlock(
                 context: &context
             )
         } else {
-            // Fallback when the image is not present in the page's media dict — preserve V1
+            // Preserve the V1 fallback when the image is missing.
             // behavior, which returns an empty layout for unknown image IDs (V1
             // InstantPageLayout.swift:623). The existing layoutMediaWithCaption would emit a
             // grey rectangle; matching V1 instead.
@@ -923,10 +921,8 @@ private func layoutBlock(
             horizontalInset: horizontalInset, context: &context)
 
     case let .map(latitude, longitude, zoom, dimensions, caption):
-        // AI/server-sent `.map` blocks can arrive with zero `dimensions` (the wire `w`/`h` are
-        // required, but the sender may put 0). A zero `naturalSize.height` collapses the media
-        // frame to height 0 (`instantPageV2MediaFrame`'s else branch) — the map takes no space,
-        // the caption slides up into it, and the pin floats over the caption — and a zero-sized
+        // `.map` blocks can arrive with zero dimensions. A zero `naturalSize.height` collapses the media
+        // frame to height 0 (`instantPageV2MediaFrame`'s else branch). A zero-sized
         // `MapSnapshotMediaResource` makes `MKMapSnapshotter` render nothing. Substitute a sensible
         // default (a 2:1 map strip) for BOTH the layout size and the snapshot resource. Real web
         // articles (the V1 renderer) always carry real dimensions, so only the rich-message path
@@ -1757,15 +1753,12 @@ private let instantPageV2MediaEdgeBleed: CGFloat = 4.0
 // `boundingWidth`) with corner radius forced to 0, relying on the bubble's rounded clipping
 // container to round media that meets the bubble's top/bottom edge. A media item that fills the
 // full width is widened by `instantPageV2MediaEdgeBleed` on the trailing edge (see the constant).
-// A media item narrower than the full width (a small image — NOT upscaled, the `min(_, 1.0)`
+// A media item narrower than the full width (a small image that is not upscaled; the `min(_, 1.0)`
 // scale cap is kept) stays at its natural size, flush-left at x = 0, with no bleed.
-// (The `cornerRadius` argument is ignored when `flush == true` — flush media is always
-// un-rounded; callers may still pass their legacy radius, it has no effect.)
+// The `cornerRadius` argument is ignored when `flush == true`; flush media is unrounded.
 //
-// `flush == false`: DEAD as of the V2 audio port — audio was its last caller and now has its
-// own `layoutAudio` arm (in `layoutBlock`), so this branch is currently unreachable (follow-up:
-// drop the `flush` parameter and this branch). Legacy behavior was: inset by `horizontalInset`
-// on each side with the caller-supplied corner radius.
+// `flush == false` is unused after the V2 audio port.
+// Legacy behavior inset media by `horizontalInset` with the caller-supplied corner radius.
 //
 // Returns the frame, the un-bled scaled content size (the caption is offset by
 // `scaledSize.height`), and the effective corner radius to stamp on the item.
@@ -1862,7 +1855,7 @@ private func layoutCollage(
     horizontalInset: CGFloat,
     context: inout LayoutContext
 ) -> [InstantPageV2LaidOutItem] {
-    // 1. One size per inner block (zero for unresolved — V1 still reserves a mosaic slot).
+    // One size per inner block; V1 reserves a slot for unresolved media.
     var itemSizes: [CGSize] = []
     for block in innerBlocks {
         switch block {
@@ -1883,7 +1876,7 @@ private func layoutCollage(
         }
     }
 
-    // 2. Mosaic geometry — the same engine V1 uses.
+    // Use the V1 mosaic geometry.
     let (mosaic, mosaicSize) = chatMessageBubbleMosaicLayout(maxSize: CGSize(width: boundingWidth, height: boundingWidth), itemSizes: itemSizes)
 
     // 3. One typed media item per resolvable cell, at its mosaic frame.
@@ -2009,7 +2002,7 @@ private func layoutMediaWithCaption(
     )
     result.append(contentsOf: captionItems)
 
-    // isCover adds extra 14pt bottom padding — but only when caption/credit text was actually
+    // Covers add 14pt bottom padding when caption or credit text was
     // rendered (matches V1 lines 204-206: `contentSize.height > 0 && isCover`). For an
     // empty-caption cover image no padding is added.
     // Implemented by extending the last text item's frame rather than emitting an invisible shape
@@ -2236,12 +2229,12 @@ private func layoutCodeBlock(
 
     // Top-level (and <details>) code blocks span the full boundingWidth flush (x=0), matching V1
     // (line 348). Inside a blockquote the child inset is raised above the page inset (by
-    // lineInset), so honor it here — otherwise the full-width background bleeds out under the
+    // lineInset), so honor it here. Otherwise the full-width background bleeds under the
     // quote bar instead of insetting to the quote's content gutter like the quote's text does.
     let blockHeight = textSize.height + backgroundInset * 2.0
     let isNestedInQuote = horizontalInset > context.pageHorizontalInset
     // Inset (quote-nested) code blocks get an 8pt rounded background; flush (top-level / details)
-    // ones stay square — the bubble's own rounded clip handles their edges.
+    // ones stay square. The bubble clip handles their edges.
     let cornerRadius: CGFloat = isNestedInQuote ? 8.0 : 0.0
     let blockFrame = CGRect(
         x: isNestedInQuote ? horizontalInset : 0.0,
@@ -2364,9 +2357,9 @@ private func layoutBlockQuote(
             attributedCaption,
             boundingWidth: innerBoundingWidth,
             alignment: context.rtl ? .right : .natural,
-            // The caption is single-inset (band [H+lineInset, B-H]), unlike the double-inset
+            // The caption uses a single inset, unlike the double-inset
             // child band, so it needs its own RTL mirror delta of -lineInset (→ [H, B-H-lineInset],
-            // tucked under the trailing bar) — NOT the children's bandOffsetX.
+            // tucked under the trailing bar), not the children's bandOffsetX.
             offset: CGPoint(x: innerHorizontalInset + (context.rtl ? -lineInset : 0.0), y: contentHeight),
             fitToWidth: context.fitToWidth,
             computeRevealCharacterRects: context.computeRevealCharacterRects
@@ -2477,7 +2470,7 @@ private func layoutQuoteText(
             kind: .line(thickness: 1.0),
             color: context.theme.textCategories.caption.color
         )
-        // Insert bottom rule before caption trailing space is consumed — append after final verticalInset.
+        // Insert the bottom rule before caption trailing space.
         result.append(.shape(bottomLine))
     } else {
         // blockQuote: vertical bar on the leading edge (V1 lines 547–549).
@@ -2494,7 +2487,7 @@ private func layoutQuoteText(
 
     // Tag this quote's produced text items at quote depth 1 so the markdown
     // converter renders them with a `> ` prefix. Applies to BOTH block quotes
-    // (single-paragraph fast path) and pull quotes — the whole-message markdown
+    // (single-paragraph fast path) and pull quotes. The whole-message markdown
     // converter renders both flavors as `> `. Nested quotes are lifted further
     // by the outer multi-block path's own bumpQuoteDepth(result) call.
     bumpQuoteDepth(result)
@@ -2514,12 +2507,10 @@ private func layoutList(
 ) -> [InstantPageV2LaidOutItem] {
     // Determine marker characteristics.
     var maxIndexWidth: CGFloat = 0.0
-    // hasNums: at least one ordered item carries an explicit `num` — in which case items
-    // without one fall back to a blank " " (preserves the source's numbering gaps) rather
+    // hasNums means at least one ordered item carries an explicit `num`. Items
+    // without one fall back to a blank " " rather
     // than auto-generated `(i + 1).`. Unordered lists never auto-generate numbers, so this
-    // flag is only meaningful when `ordered` is true. (`hasTaskMarkers` is no longer derived
-    // — the uniform 8pt gap below replaced the per-list `indexSpacing` ternary that consumed
-    // it; column right-alignment handles mixed bullet/checkbox lists without flagging.)
+    // flag is only meaningful when `ordered` is true.
     var hasNums = false
     if ordered {
         for item in listItems {
@@ -2542,10 +2533,8 @@ private func layoutList(
         stroke: context.theme.pageBackgroundColor,
         border: context.theme.controlColor
     )
-    // Track maxIndexWidth for ALL marker kinds (ordered + unordered, all three shapes), not
-    // just ordered as V1/older V2 did. With every kind contributing to the marker column width
-    // we can right-align every marker to a single shared column edge — so in a mixed unordered
-    // list (bullets + checkboxes) both right-align flush to the same x, and the same uniform
+    // Track every marker kind and align them to one shared column edge.
+    // Bullets and checkboxes align to the same x, and the same uniform
     // gap separates them from the text. The column width simply equals the widest marker; for
     // a pure bullet list `maxIndexWidth == 6` and the bullet sits at `horizontalInset` (visually
     // identical to the pre-change formula), and for a pure checkbox list `maxIndexWidth == 18`
@@ -2594,12 +2583,8 @@ private func layoutList(
 
     // Uniform 8pt marker→text gap across all four cases (ordered/unordered × bullet/number/
     // checkbox). With markers right-aligned to a shared column of width `maxIndexWidth`, text
-    // starts at `horizontalInset + maxIndexWidth + indexSpacing` — so `indexSpacing` IS the
-    // gap, regardless of marker shape. V1 used 12/16/20/24 (a mix of marker-area-width and
-    // gap-after-marker, depending on alignment); the four gaps came out to 12/16/14/6 — far
-    // from uniform, and a 14pt bullet gap looked especially loose. 8pt is a standard iOS list
-    // gap; it tightens bullets (14→8), numbers (12→8) and ordered-checkbox (16→8), and only
-    // loosens unordered-checkbox very slightly (6→8) so all four kinds match.
+    // starts at `horizontalInset + maxIndexWidth + indexSpacing`, so `indexSpacing` is the
+    // gap, regardless of marker shape.
     let indexSpacing: CGFloat = 8.0
 
     // Layout each item.
@@ -2722,7 +2707,7 @@ private func layoutList(
 
                 // Nil-guard in stampMarkdownContext preserves any richer kind (e.g. .heading)
                 // already stamped by a child block's own layout. So a heading nested inside a
-                // .blocks list item keeps .heading, not .listItem — multi-block list items are
+                // Multi-block list items keep `.heading`.
                 // a documented best-effort case for markdown reconstruction.
                 stampMarkdownContext(translatedItems, kind: .listItem(ordered: ordered, marker: markdownMarker, checked: markdownChecked))
                 result.append(contentsOf: translatedItems)
@@ -2732,7 +2717,7 @@ private func layoutList(
 
             // Mirror the .text case above (and what .checklist already does here): use the
             // first text line's midY for centering. `originY` is the sub-block's TOP, NOT a
-            // line midpoint — `markerFrameFor` then subtracts `size.height / 2`, so feeding
+            // line midpoint. `markerFrameFor` subtracts `size.height / 2`, so feeding
             // `originY` placed the marker straddling the sub-block boundary, ½·marker-height
             // ABOVE the first text line. V1 hid the same arithmetic under a 6×12 shape with a
             // 3pt internal offset (matching ½·fontLineHeight for 17pt paragraph text), which
@@ -2773,7 +2758,7 @@ private func layoutList(
 /// For a pure-kind list `maxIndexWidth == markerWidth`, so the marker lands at `horizontalInset`
 /// exactly as before; for mixed unordered lists, bullets and checkboxes align flush at the
 /// column's inner edge. Column right-alignment is the single rule across every marker shape
-/// — no `ordered` / `indexSpacing` split — which is why those parameters dropped.
+/// without separate `ordered` or `indexSpacing` parameters.
 private func markerFrameFor(
     kind: InstantPageV2ListMarkerKind,
     naturalWidth: CGFloat,
@@ -2802,7 +2787,7 @@ private func markerFrameFor(
     return CGRect(x: x, y: floorToScreenPixels(lineMidY - size.height / 2.0), width: size.width, height: size.height)
 }
 
-/// Leading/trailing geometry helpers — the single source of truth for "which side is the
+/// Leading and trailing geometry helpers.
 /// block gutter on", gated on the page's explicit `rtl` flag. The `rtl == false` branch returns
 /// the pre-existing literal so non-RTL pages are byte-identical.
 
@@ -2969,7 +2954,7 @@ func v2FrameForLine(_ line: InstantPageTextLine, boundingWidth: CGFloat, alignme
 // Returns the leading-edge x offset (line-origin-relative) for an inline-attachment's string
 // `range`, correct for both LTR and RTL runs. `CTLineGetOffsetForStringIndex` at the start index
 // gives the glyph's LEFT edge in LTR text, but its RIGHT edge in RTL text (increasing string index
-// moves leftward) — so using the start-index offset alone as the left edge shoves an RTL attachment
+// moves leftward), so using the start-index offset alone shifts an RTL attachment
 // ~one advance too far right. Taking the min of the start- and end-index offsets yields the true
 // leading (left) edge in both directions. Mirrors `Display.TextNode`'s `addEmbeddedItem`, including
 // the directional-boundary secondary-offset handling. For a pure-LTR line this returns exactly the
@@ -3195,7 +3180,7 @@ func layoutTextItem(
             // Inline emoji and images do NOT inflate the line: they are centered on the font
             // line box and allowed to bleed above/below (mirroring V1 `layoutTextItemWithString`
             // and the chat `InteractiveTextComponent`). Their run delegates already report the
-            // font's own ascent/descent, so CoreText lays the line out at the normal height — the
+            // font's own ascent/descent, so CoreText keeps the normal line height.
             // old `lineAscent = emoji.size` inflation both doubled the line height and (because the
             // baseline sits at the bottom of the box) shoved the text baseline down. Only formulas,
             // which carry their own typographic metrics, are allowed to grow the line.
@@ -3335,9 +3320,7 @@ func layoutTextItem(
                     }
                 }
             }
-            // Per-character rects use each glyph's actual ink bounds via
-            // CTFontGetBoundingRectsForGlyphs — caret-position advance-width
-            // math (CTLineGetOffsetForStringIndex) is too tight for italics,
+            // Caret advance width is too tight for italics,
             // accented marks, and any glyph with side bearings, which causes
             // the reveal mask to visibly clip the glyph edges. Mirrors
             // InteractiveTextComponent.computeCharacterRectsForLine.
@@ -3406,7 +3389,7 @@ func layoutTextItem(
                         // Image cell is centered on the font line box (see frame loop). Baseline-relative
                         // cell spans [fontLineHeight/2 − height/2, fontLineHeight/2 + height/2]; the full
                         // width feeds the reveal cost map so the streaming cursor is charged the image's
-                        // width when crossing it — same as an emoji cell.
+                        // width when crossing it, like an emoji cell.
                         rects[localIndex] = CGRect(x: x, y: fontLineHeight / 2.0 - image.size.height / 2.0, width: image.size.width, height: image.size.height)
                     }
                 }

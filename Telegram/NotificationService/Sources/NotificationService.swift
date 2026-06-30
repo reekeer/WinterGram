@@ -2612,60 +2612,36 @@ typealias CMJImage = UIImage
 
 // MARK: - Public Namespace
 
-/// A lightweight utility for turning ordinary bitmap images into ``NSAdaptiveImageGlyph`` (Apple “Genmoji”) objects.
-///
-/// ## Overview
-/// The public API is minimal — a single call to generate a glyph and helper utilities for
-/// de/serialising attributed strings.
-///
-/// ```swift
-/// // Synchronous usage
-/// let glyph = try Customoji.makeGlyph(
-///     from: image,
-///     description: "alt text",
-///     cropToSquare: true
-/// )
-/// let attr = NSAttributedString(adaptiveImageGlyph: glyph, attributes: [:])
-/// ```
-///
-/// ## Requirements
-/// * iOS 18 / macOS 15
-/// * Swift 5.10+
-///
-/// ## Topics
-/// - Generating glyphs: ``makeGlyph(from:description:identifier:tileSizes:cropToSquare:heicQuality:)``
-/// - Generating glyphs asynchronously: ``makeGlyphAsync(from:description:identifier:tileSizes:cropToSquare:heicQuality:)``
-/// - Serialising: ``decompose(_:)`` / ``recompose(plain:ranges:blobs:)``
-///
+/// Utility for converting bitmaps into ``NSAdaptiveImageGlyph`` (Genmoji).
 public struct Customoji {
 
     // MARK: Library-scoped Errors
-    /// Errors that can be thrown by ``Customoji``.
+    /// Errors thrown by ``Customoji``.
     public enum Error: Swift.Error, LocalizedError {
-        /// The input image is not square and ``makeGlyph(from:description:identifier:tileSizes:cropToSquare:heicQuality:)`` was called with `cropToSquare == false`.
+        /// Input image is not square and cropping is disabled.
         case nonSquare
-        /// The longest side of the input image exceeds ``maxSide`` pixels (defaults to 4096).
+        /// Input image exceeds ``maxSide`` pixels.
         case imageTooLarge
-        /// Failed to create an in-memory HEIC container via *Image I/O*.
+        /// Failed to create the in-memory HEIC container.
         case heicDestinationCreationFailed
-        /// Failed to finalise the HEIC container after writing all tiles.
+        /// Failed to finalize the HEIC container.
         case heicFinalizeFailed
-        /// Internal resize operation failed when generating a tile.
+        /// Resizing a tile failed.
         case imageScaleFailed
-        /// A `CGImage` representation could not be extracted from the source image.
+        /// Could not extract a `CGImage` from the source image.
         case cgImageUnavailable
-        /// The `tileSizes` parameter was empty, not strictly ascending, contained duplicates, or exceeded the source size.
+        /// `tileSizes` was empty, not strictly ascending, contained duplicates, or exceeded the source size.
         case invalidTileSizes
-        /// No tiles were generated — normally unreachable unless all requested sizes were invalid.
+        /// No tiles were generated; normally unreachable unless all requested sizes were invalid.
         case noTilesGenerated
-        /// The current platform is neither UIKit- nor AppKit-based (unlikely in practice).
+        /// Unsupported platform.
         case unsupportedPlatform
-        /// The `heicQuality` parameter was outside the 0.0 … 1.0 range.
+        /// `heicQuality` was outside the 0.0...1.0 range.
         case invalidHeicQuality
         /// Cropping or scaling to a square failed.
         case squareCropFailed
 
-        /// Textual description suitable for presenting to users.
+        /// Localized error description.
         public var errorDescription: String? {
             switch self {
             case .nonSquare: return "Input image must be square."
@@ -2694,26 +2670,16 @@ public struct Customoji {
         }
     }
 
-    /// Default tile sizes (in pixels) officially used by Apple for Genmoji.
+    /// Default Genmoji tile sizes.
     public static let defaultTileSizes = [40, 64, 96, 160, 320]
 
-    /// Maximum allowed side length (in pixels) to guard against excessive memory consumption.
+    /// Maximum allowed side length, in pixels.
     private static let maxSide = 4_096
 
     // MARK: - Synchronous Builder
     #if swift(>=5.10)
         @available(iOS 18.0, macCatalyst 18.0, macOS 15.0, *)
-        /// Generates an ``NSAdaptiveImageGlyph`` synchronously on the **current** thread.
-        ///
-        /// - Parameters:
-        ///   - image: Source image. Can be rectangular; see `cropToSquare`.
-        ///   - description: A human-readable accessibility description (VoiceOver/Narrator).
-        ///   - identifier: A globally unique content identifier. Defaults to a fresh UUID.
-        ///   - tileSizes: Desired tile sizes, in pixels. Must be strictly ascending. Defaults to ``defaultTileSizes``.
-        ///   - cropToSquare: When `true`, the central square area is cropped if the input image is not square.
-        ///   - heicQuality: Lossy compression quality between `0.0` and `1.0`. Defaults to `0.8`.
-        /// - Throws: ``Customoji/Error`` if validation or encoding fails.
-        /// - Returns: A fully-formed glyph ready for attribution.
+        /// Generate an ``NSAdaptiveImageGlyph`` from a bitmap.
         static func makeGlyph(
             from image: CMJImage,
             description: String,
@@ -2739,19 +2705,7 @@ public struct Customoji {
     // MARK: - AttributedString Utilities
     #if swift(>=5.10)
         @available(iOS 18.0, macCatalyst 18.0, macOS 15.0, *)
-        /// Breaks an ``NSAttributedString`` that may contain adaptive-image glyphs into three parts.
-        ///
-        /// This is handy when you need to **serialise** rich text for network transport or persistent
-        /// storage, because `NSAdaptiveImageGlyph` itself is not `Codable`.
-        ///
-        /// ```swift
-        /// let (plain, ranges, blobs) = Customoji.decompose(attrString)
-        /// ```
-        ///
-        /// - Returns: A tuple where:
-        ///   - plain: UTF-16 plain text.
-        ///   - ranges: An array mapping text ranges to glyph identifiers.
-        ///   - blobs: A dictionary mapping identifier → raw HEIC data.
+        /// Split an attributed string into plain text, glyph ranges, and HEIC data.
         @inlinable
         public static func decompose(_ attr: NSAttributedString) -> (
             plain: String, ranges: [(NSRange, String)], blobs: [String: Data]
@@ -2773,13 +2727,7 @@ public struct Customoji {
         }
 
         @available(iOS 18.0, macCatalyst 18.0, macOS 15.0, *)
-        /// Reassembles an attributed string previously produced by ``decompose(_:)``.
-        ///
-        /// - Parameters:
-        ///   - plain: The plain UTF-16 text.
-        ///   - ranges: An array of `(NSRange, identifier)` pairs.
-        ///   - blobs: A dictionary of identifier → HEIC data. *Must* contain every identifier referenced by `ranges`.
-        /// - Returns: A fully restored `NSAttributedString` with adaptive-image glyphs reinstated.
+        /// Reassemble an attributed string from ``decompose(_:)`` output.
         public static func recompose(
             plain: String,
             ranges: [(NSRange, String)],
@@ -2805,8 +2753,7 @@ public struct Customoji {
     #endif
 
     // MARK: - Helper: Pixel-Side Validation
-    /// Ensures that the image’s **longer edge** does not exceed ``maxSide`` pixels, guarding against
-    /// excessive memory usage during HEIC encoding.
+    /// Reject images whose longer edge exceeds ``maxSide``.
     private static func validatePixelSide(of image: CMJImage) throws {
         #if canImport(UIKit)
             let scale = image.scale == 0 ? 1 : image.scale
@@ -2820,11 +2767,6 @@ public struct Customoji {
         guard px <= maxSide else { throw Error.imageTooLarge }
     }
 }
-
-// =============================================================
-//  Below this line lies the internal implementation.
-//  Public-facing symbols have already been documented above.
-// =============================================================
 
 // MARK: - Core Builder
 @available(iOS 18.0, macCatalyst 18.0, macOS 15.0, *)

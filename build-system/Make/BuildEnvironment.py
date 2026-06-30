@@ -14,7 +14,9 @@ def is_apple_silicon():
 def get_clean_env(use_clean_env=True):
     clean_env = os.environ.copy()
     if use_clean_env:
-        clean_env['PATH'] = '/usr/bin:/bin:/usr/sbin:/sbin'
+        # Force xcode-select to return the Xcode-beta path instead of CommandLineTools.
+        wrapper_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'build-system', 'xcode-wrapper')
+        clean_env['PATH'] = wrapper_dir + ':/usr/bin:/bin:/usr/sbin:/sbin'
     return clean_env
 
 

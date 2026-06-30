@@ -6,11 +6,7 @@ import AccountContext
 import TelegramCore
 import TelegramPresentationData
 
-// A paged carousel for an `InstantPageBlock.slideshow`. Ports V1's InstantPageSlideshowNode /
-// InstantPageSlideshowPagerNode (InstantPageSlideshowItemNode.swift), simplified to create all pages
-// eagerly (slideshows are short; this avoids V1's central±1 index bookkeeping and makes the gallery
-// transition source available for every page). Each image page hosts an `InstantPageImageNode` exactly
-// like the static media views; non-image medias render an empty page (matches V1).
+// Paged slideshow backed by `InstantPageImageNode`.
 final class InstantPageV2SlideshowView: UIView, InstantPageItemView, UIScrollViewDelegate {
     private(set) var item: InstantPageV2SlideshowItem
     var itemFrame: CGRect { return self.item.frame }
@@ -21,9 +17,7 @@ final class InstantPageV2SlideshowView: UIView, InstantPageItemView, UIScrollVie
     private let scrollView: UIScrollView
     private let pageControlNode: PageControlNode
 
-    // One wrapper view per media (so page count stays aligned with the page control). `pageImageNodes`
-    // holds only the real image nodes; it may be shorter than `pageViews` if a non-image media appears
-    // (which `layoutSlideshow` currently filters out). Nothing relies on positional correspondence.
+    // Keep one page per media so the page control stays aligned.
     private var pageViews: [UIView] = []
     private var pageImageNodes: [InstantPageImageNode] = []
 
@@ -68,7 +62,7 @@ final class InstantPageV2SlideshowView: UIView, InstantPageItemView, UIScrollVie
         self.pageImageNodes = []
 
         let renderContext = self.renderContext
-        // The image node owns this closure, and is owned (transitively) by self — capture weakly.
+        // The image node retains this closure.
         let openMedia: (InstantPageMedia) -> Void = { [weak self] tapped in
             guard let self else { return }
             handleOpenMediaTap(tapped: tapped, wrapper: self, renderContext: renderContext)
@@ -91,23 +85,21 @@ final class InstantPageV2SlideshowView: UIView, InstantPageItemView, UIScrollVie
                 pageView.addSubview(node.view)
                 self.pageImageNodes.append(node)
             }
-            // Non-image medias (none in practice — layoutSlideshow filters to images) get an empty page
-            // to keep page indices aligned with the page control.
+            // Keep an empty page for unexpected non-image media.
             self.scrollView.addSubview(pageView)
             self.pageViews.append(pageView)
         }
 
         self.pageControlNode.pagesCount = self.item.medias.count
         self.pageControlNode.setPage(0.0)
-        // Re-register media indices when rebuilding while already on-window (positional reuse with
-        // changed content); no-ops before the view is attached, where didMoveToWindow handles it.
+        // Re-register reused pages already attached to a window.
         self.registerMedias()
         self.setNeedsLayout()
     }
 
     private func registerMedias() {
         guard self.window != nil else { return }
-        // Register under every contained media index so transitionArgsFor(media) can find this view.
+        // Register every media index for gallery transitions.
         for media in self.item.medias {
             registerInRootRegistry(wrapper: self, mediaIndex: media.index)
         }

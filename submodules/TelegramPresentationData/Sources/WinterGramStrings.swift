@@ -139,6 +139,7 @@ private let winterGramRussianSeed: [String: String] = [
     "WinterGram.ShowMessageSeconds": "Секунды в сообщениях",
     "WinterGram.ShowPeerID": "Показывать ID",
     "WinterGram.ShowRegistrationDate": "Показывать дату регистрации",
+    "WinterGram.RegistrationDate": "Дата регистрации",
     "WinterGram.SingleCornerRadius": "Одиночное скругление",
     "WinterGram.SomeSettingsWillTakeEffectAfterRestart": "Некоторые настройки вступят в силу после перезапуска.",
     "WinterGram.SpoofAppVersion": "Версия приложения",
@@ -195,8 +196,8 @@ public func winterGramSeedStrings(languageCode: String) -> [String: String] {
 }
 
 /// Localizes a WinterGram option/section label chosen at runtime (dropdown selections, section
-/// titles) by routing the known English value to its generated accessor. Unknown values — user
-/// input such as custom fonts, reactions or spoofed identifiers — are returned unchanged.
+/// titles) by routing the known English value to its generated accessor. Unknown user input
+/// such as custom fonts, reactions, or spoofed identifiers is returned unchanged.
 public func wntOption(_ english: String, _ strings: PresentationStrings) -> String {
     switch english {
     case "Off": return strings.WinterGram_Off

@@ -1173,7 +1173,7 @@ public func richMarkdownAttributeIfNeeded(context: AccountContext, attributedTex
     // .textCustomEmoji in markdownInlineContent. A link is entity-expressible,
     // so an emoji-only message still classifies as not-rich (and falls through
     // to the entity path, where its untouched attribute makes a .CustomEmoji
-    // entity) — custom emoji alone never forces a rich message.
+    // entity). Custom emoji alone never forces a rich message.
     let text = markdownSourceInjectingCustomEmojiMarkers(attributedText)
     guard markdownMightNeedRichLayout(text) else {
         return nil

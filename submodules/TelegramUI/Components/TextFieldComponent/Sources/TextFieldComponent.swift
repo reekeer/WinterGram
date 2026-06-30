@@ -17,7 +17,8 @@ import TextInputMenu
 import ObjCRuntimeUtils
 import MultilineTextComponent
 
-public final class EmptyInputView: UIView, UIInputViewAudioFeedback {
+// Internal to avoid collision with ChatEntityKeyboardInputNode.EmptyInputView.
+final class EmptyInputView: UIView, UIInputViewAudioFeedback {
     public var enableInputClicksWhenVisible: Bool {
         return true
     }

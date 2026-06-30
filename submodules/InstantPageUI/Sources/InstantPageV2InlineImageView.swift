@@ -9,14 +9,14 @@ import AccountContext
 import PhotoResources
 import MediaResources
 
-/// Lightweight inline image view for InstantPage V2 — wraps a `TransformImageNode`
+/// Inline InstantPage V2 image backed by `TransformImageNode`.
 /// to render a single `RichText.image` cell inside a text view.
 ///
 /// Owned by `InstantPageV2View` (not an `InstantPageItemView` conformer; not in
 /// the view-factory switch). Hosted inside the parent text view's
 /// `imageContainerView` (sibling of `renderContainer`, above the reveal mask,
 /// below `emojiContainerView`), so the streaming reveal can wipe text glyphs
-/// while the image pops in independently. Non-interactive — taps pass through
+/// while the image pops in independently. Taps pass through
 /// to the text view, so a URL-wrapping `RichText.url(text: .image(...))`
 /// continues to route taps to the URL handler.
 final class InstantPageV2InlineImageView: UIView {

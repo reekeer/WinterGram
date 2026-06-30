@@ -9,6 +9,7 @@ import TelegramPresentationData
 import LegacyComponents
 import SolidRoundedButtonNode
 import RMIntro
+import AppBundle
 
 public final class AuthorizationSequenceSplashController: ViewController {
     private var controllerNode: AuthorizationSequenceSplashControllerNode {
@@ -78,7 +79,11 @@ public final class AuthorizationSequenceSplashController: ViewController {
         super.init(navigationBarPresentationData: nil)
         
         self._hasGlassStyle = true
-        
+
+        // Brand icon for the first intro page, matching the theme.
+        let iconName = theme.overallDarkAppearance ? "IntroLogoDark" : "IntroLogoLight"
+        self.controller.firstPageIcon = UIImage(bundleImageName: iconName)
+
         self.supportedOrientations = ViewControllerSupportedOrientations(regularSize: .all, compactSize: .portrait)
         
         self.statusBar.statusBarStyle = theme.intro.statusBarStyle.style

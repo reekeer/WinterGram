@@ -276,10 +276,17 @@ class ThemeSettingsChatPreviewItemNode: ListViewItemNode {
                         }
                         node.updateFrame(CGRect(origin: CGPoint(x: 0.0, y: topOffset), size: node.frame.size), within: layoutSize)
                         if avatarFrame == nil, nodeIndex < displayedMessageItems.count, !displayedMessageItems[nodeIndex].outgoing {
-                            let avatarSize: CGFloat = 40.0
+                            // The message nodes live in `containerNode`, which is flipped 180° (π about Z),
+                            // so a node placed at container-space top `topOffset` is drawn with its visual
+                            // bottom at `contentSize.height - topOffset`. The avatar is a direct subnode of
+                            // `self` (un-flipped), so compute its position in screen space and snap its
+                            // bottom to the incoming bubble's tail — matching a real Telegram message row.
+                            let avatarSize: CGFloat = 37.0
+                            let tailBottomInset: CGFloat = -2.0
+                            let visualBottom = contentSize.height - topOffset
                             avatarFrame = CGRect(
                                 x: params.leftInset + 9.0,
-                                y: topOffset + max(6.0, node.frame.height - avatarSize - 8.0),
+                                y: visualBottom - avatarSize - tailBottomInset,
                                 width: avatarSize,
                                 height: avatarSize
                             )
@@ -292,7 +299,11 @@ class ThemeSettingsChatPreviewItemNode: ListViewItemNode {
                         let avatarRadius = min(avatarFrame.width, avatarFrame.height) * CGFloat(max(0, min(50, item.avatarCornerRadius))) / 100.0
                         strongSelf.avatarNode.layer.cornerRadius = avatarRadius
                         strongSelf.avatarNode.layer.masksToBounds = true
-                        strongSelf.avatarNode.setPeer(context: item.context, theme: item.componentTheme, peer: avatarPeer, synchronousLoad: false, displayDimensions: avatarFrame.size)
+                        // Generate a SQUARE avatar image (clipStyle .none) and let this node's own
+                        // cornerRadius define the shape. Otherwise AvatarNode bakes the *global*
+                        // avatarCornerRadius into the image and early-returns on re-`setPeer`, so the
+                        // live preview value (dragged slider) never takes effect.
+                        strongSelf.avatarNode.setPeer(context: item.context, theme: item.componentTheme, peer: avatarPeer, clipStyle: .none, synchronousLoad: false, displayDimensions: avatarFrame.size)
                         strongSelf.avatarNode.updateSize(size: avatarFrame.size)
                     } else {
                         strongSelf.avatarNode.isHidden = true

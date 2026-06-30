@@ -1,4 +1,3 @@
-build --action_env=ZERO_AR_DATE=1
 
 build --enable_platform_specific_config
 
@@ -39,3 +38,8 @@ common:index_build --noannounce_rc
 common:index_build --noshow_timestamps
 common:index_build --curses=no
 common:index_build --color=no
+
+# Demote new Xcode 27 / iOS 27 deprecation and implicit-capture diagnostics to warnings.
+build --features=-treat_warnings_as_errors
+build --@build_bazel_rules_swift//swift:copt=-no-warnings-as-errors
+build --copt=-Wno-deprecated-declarations

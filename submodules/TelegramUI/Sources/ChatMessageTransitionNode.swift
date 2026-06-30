@@ -64,8 +64,8 @@ private func pendingAdditiveSublayerTranslation(_ layer: CALayer) -> CGPoint {
 /// `convert(_:to:)` into the child. Applying the correction at the right level
 /// (rather than flat-summing the translations in the destination space) lets
 /// `CALayer.convert` propagate each correction through any remaining
-/// transforms — child `transform`, further ancestors' own model
-/// `sublayerTransform`, etc. — so the result is correct even when the chain
+/// transforms, including child `transform` and ancestor model
+/// `sublayerTransform`, so the result is correct even when the chain
 /// contains non-translation transforms (rotations, scales).
 private func convertAnimatingSourceRectFromWindow(_ windowRect: CGRect, toView: UIView) -> CGRect {
     var chain: [CALayer] = []
